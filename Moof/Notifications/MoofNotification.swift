@@ -76,10 +76,6 @@ enum MoofCommand {
             query[item.name.lowercased()] = item.value
         }
 
-        func flag(_ key: String) -> Bool? {
-            query[key].map { ["1", "true", "yes"].contains($0.lowercased()) }
-        }
-
         func text(_ key: String) -> String? {
             query[key].flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         }
@@ -88,7 +84,6 @@ enum MoofCommand {
         case "notify":
             let style = MoofNotification.Style(rawValue: text("style")?.lowercased() ?? MoofNotification.Style.info.rawValue)
             assert(style != nil, "Unknown moof style \(query["style"] ?? ""); using info.")
-            let duration = text("duration").flatMap(TimeInterval.init).map { min(max($0, 0), 3_600) }
             let height = text("height").flatMap(Int.init) ?? MoofPreferences.shared.defaultHeightLevel
             self = .notify(
                 MoofNotification(
@@ -99,7 +94,7 @@ enum MoofCommand {
                     source: text("source"),
                     style: style ?? .info,
                     background: text("background").map(NSColor.init(hex:)),
-                    duration: flag("sticky") == true ? 0 : duration,
+                    duration: text("duration").flatMap(TimeInterval.init).map { min(max($0, 0), 3_600) },
                     heightLevel: min(max(height, MoofNotificationLayout.heightRange.lowerBound), MoofNotificationLayout.heightRange.upperBound),
                     sound: text("sound").map { NSSound.Name($0) },
                     action: text("action").flatMap(URL.init(string:)),
