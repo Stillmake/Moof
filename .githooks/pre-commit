@@ -1,0 +1,63 @@
+#!/bin/sh
+
+set -u
+
+echo "Checking format for staged Swift files..."
+
+STAGED_SWIFT_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')
+
+if [ -z "$STAGED_SWIFT_FILES" ]; then
+  exit 0
+fi
+
+if ! xcrun --find swift-format >/dev/null 2>&1; then
+  echo "swift-format is not available via xcrun. Skipping formatting."
+  exit 0
+fi
+
+FORMAT_FAILED=0
+RESTAGED_FILES=0
+SKIPPED_RESTAGE_FILES=0
+
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+
+  HAS_UNSTAGED_CHANGES=0
+  if ! git diff --quiet -- "$file"; then
+    HAS_UNSTAGED_CHANGES=1
+  fi
+
+  if ! xcrun swift-format format --in-place "$file"; then
+    echo "swift-format failed for: $file"
+    FORMAT_FAILED=1
+    continue
+  fi
+
+  if [ "$HAS_UNSTAGED_CHANGES" -eq 0 ]; then
+    if ! git add -- "$file"; then
+      echo "git add failed for: $file"
+      FORMAT_FAILED=1
+      continue
+    fi
+    RESTAGED_FILES=1
+  else
+    echo "Skipped re-staging partially staged file: $file"
+    SKIPPED_RESTAGE_FILES=1
+  fi
+done <<EOF
+$STAGED_SWIFT_FILES
+EOF
+
+if [ "$FORMAT_FAILED" -ne 0 ]; then
+  echo "Formatting failed for one or more files. Commit will continue."
+fi
+
+if [ "$RESTAGED_FILES" -ne 0 ]; then
+  echo "Formatted and re-staged fully staged files."
+fi
+
+if [ "$SKIPPED_RESTAGE_FILES" -ne 0 ]; then
+  echo "Partially staged files were formatted in the working tree only. Stage them manually for a later commit."
+fi
+
+exit 0
