@@ -146,7 +146,7 @@ struct MoofNotificationLayout {
     static let bottomBarHeight: CGFloat = 26
     static let messageFont = NSFont.monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
 
-    static let eldenRingTitleFont = serif(size: 18)
+    static let eldenRingTitleFont = serif(size: 20)
     static let eldenRingMessageFont = serif(size: 13)
     static let marioFont = NSFont.systemFont(ofSize: 26, weight: .semibold)
     static let marioLineSpacing: CGFloat = 14
@@ -166,7 +166,7 @@ struct MoofNotificationLayout {
             size = CGSize(width: Self.panelWidth, height: Self.cardPadding * 2 + Self.headerHeight + Self.cardSpacing + (message ?? 0) + Self.bottomBarHeight)
         case .eldenRing:
             // 120pt side margins, 36pt above and below the text, then the divider and the 46pt prompt row.
-            let title = Self.textHeight(notification.title, font: Self.eldenRingTitleFont, width: 520, kern: 1.4, maxLines: 1)
+            let title = Self.textHeight(notification.title, font: Self.eldenRingTitleFont, width: 520, kern: 0.3, maxLines: 1)
             let message = notification.message.map {
                 10 + Self.textHeight($0, font: Self.eldenRingMessageFont, width: 520, kern: 0.6, maxLines: Self.maxLines - 1)
             }

@@ -2,7 +2,7 @@ import AppKit
 
 extension NSColor {
     /// Construct a color from a three- or six-digit hex string.
-    convenience init(hex string: String) {
+    nonisolated convenience init(hex string: String) {
         var hex =
             string.hasPrefix("#")
             ? String(string.dropFirst())

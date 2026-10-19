@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The in-game message band: a dark translucent strip fading out at both ends, centered serif
-/// text, a hairline divider, and gamepad-style prompts. The divider doubles as the countdown,
+/// The in-game message band: a dark translucent strip rimmed by needle hairlines, centered serif
+/// text, a needle divider, and gamepad-style prompts. The divider doubles as the countdown,
 /// its lit span shrinking toward the center. Style colors and icons are ignored.
 struct EldenRingCard: View {
     let notification: MoofNotification
@@ -10,23 +10,19 @@ struct EldenRingCard: View {
     var copy: (() -> Void)?
     var action: (() -> Void)?
 
-    private static let ivory = Color(red: 0.88, green: 0.85, blue: 0.76)
+    private static let ivory = Color(red: 0.94, green: 0.93, blue: 0.88)
     private static let gold = Color(red: 0.74, green: 0.64, blue: 0.42)
+    private static let needle = Color(red: 0.94, green: 0.93, blue: 0.83)
 
     var body: some View {
         let size = MoofNotificationLayout(notification: notification).size
         let ink = notification.background.map { $0.isDark ? Self.ivory : Color.black } ?? Self.ivory
-        let band = notification.background.map(Color.init(nsColor:)) ?? Color(red: 0.17, green: 0.155, blue: 0.13)
-        let edgeFade = LinearGradient(
-            stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12), .init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
+        let band = notification.background.map(Color.init(nsColor:)) ?? Color(red: 0.2, green: 0.195, blue: 0.178)
         VStack(spacing: 0) {
             VStack(spacing: 10) {
                 Text(notification.title)
                     .font(Font(MoofNotificationLayout.eldenRingTitleFont))
-                    .kerning(1.4)
+                    .kerning(0.3)
                     .lineLimit(1)
                     .fixedSize(horizontal: false, vertical: true)
                 if let message = notification.message {
@@ -44,22 +40,22 @@ struct EldenRingCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             ZStack {
-                Rectangle().fill(Self.gold.opacity(0.22))
+                Needle().fill(Self.needle.opacity(0.35))
                 if let dismissState, dismissState.isCountingDown {
                     TimelineView(.animation) { context in
                         GeometryReader { proxy in
-                            Rectangle()
-                                .fill(Self.gold.opacity(0.8))
+                            Needle()
+                                .fill(Self.needle.opacity(0.85))
                                 .frame(width: proxy.size.width * dismissState.progress(at: context.date))
                                 .frame(maxWidth: .infinity)
                         }
                     }
                 }
             }
-            .frame(height: 1)
-            .padding(.horizontal, 72)
+            .frame(height: 2)
+            .padding(.horizontal, 12)
 
-            HStack(spacing: 32) {
+            HStack(spacing: 14) {
                 if let action {
                     prompt("A", notification.actionTitle, action)
                 }
@@ -69,35 +65,103 @@ struct EldenRingCard: View {
             .frame(height: 46)
         }
         .foregroundStyle(ink)
-        .shadow(color: .black.opacity(0.7), radius: 1.5, y: 1)
+        .shadow(color: .black.opacity(0.5), radius: 1, y: 0.5)
         .frame(width: size.width, height: size.height)
         .background {
+            // Needle hairlines on the top and bottom rims, each casting a soft glow inward.
             ZStack {
-                LinearGradient(colors: [band.opacity(0.93), band.opacity(0.84), band.opacity(0.93)], startPoint: .top, endPoint: .bottom)
+                band.opacity(0.85)
+                // Glow falloffs sampled from the in-game panel: a near-exponential decay from each rim.
                 VStack(spacing: 0) {
-                    Rectangle().fill(.white.opacity(0.07)).frame(height: 1)
+                    LinearGradient(
+                        stops: [
+                            .init(color: Self.needle.opacity(0.6), location: 0),
+                            .init(color: Self.needle.opacity(0.42), location: 0.17),
+                            .init(color: Self.needle.opacity(0.28), location: 0.33),
+                            .init(color: Self.needle.opacity(0.17), location: 0.5),
+                            .init(color: Self.needle.opacity(0.09), location: 0.67),
+                            .init(color: Self.needle.opacity(0.03), location: 0.83),
+                            .init(color: .clear, location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 6)
                     Spacer(minLength: 0)
-                    Rectangle().fill(.black.opacity(0.45)).frame(height: 1)
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: Self.needle.opacity(0.03), location: 0.14),
+                            .init(color: Self.needle.opacity(0.07), location: 0.29),
+                            .init(color: Self.needle.opacity(0.16), location: 0.43),
+                            .init(color: Self.needle.opacity(0.28), location: 0.57),
+                            .init(color: Self.needle.opacity(0.44), location: 0.71),
+                            .init(color: Self.needle.opacity(0.6), location: 0.86),
+                            .init(color: Self.needle.opacity(0.7), location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 7)
+                }
+                VStack(spacing: 0) {
+                    Needle().fill(Self.needle.opacity(0.85)).frame(height: 1.5)
+                    Spacer(minLength: 0)
+                    Needle().fill(Self.needle.opacity(0.75)).frame(height: 1.5)
                 }
             }
-            .mask(edgeFade)
+            .mask(
+                LinearGradient(
+                    stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.04), .init(color: .black, location: 0.96), .init(color: .clear, location: 1)], startPoint: .leading,
+                    endPoint: .trailing))
         }
     }
 
     private func prompt(_ key: String, _ title: String, _ action: (() -> Void)?) -> some View {
         Button(action: { action?() }) {
-            HStack(spacing: 4) {
-                Text(key)
-                    .font(.system(size: 11, weight: .medium, design: .serif))
-                    .foregroundStyle(Self.gold)
-                    .frame(width: 20, height: 20)
-                    .overlay(Circle().stroke(Self.gold, lineWidth: 1.2))
+            HStack(spacing: 3) {
+                // Text centers its line box and advance, not its ink; draw the outline centered by its bounds.
+                Glyph(character: key, size: 13)
+                    .fill(Self.gold)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(.black.opacity(0.35)))
+                    .overlay(Circle().stroke(Self.gold, lineWidth: 1.8))
                 Text(":\(title)")
-                    .font(.system(size: 14, design: .serif))
-                    .tracking(0.8)
+                    .font(.system(size: 17, design: .serif))
             }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A horizontal hairline that swells to full thickness quickly and tapers to points at both ends.
+private struct Needle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addQuadCurve(to: CGPoint(x: rect.midX, y: rect.minY), control: CGPoint(x: rect.minX + rect.width * 0.1, y: rect.minY))
+            path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.midY), control: CGPoint(x: rect.maxX - rect.width * 0.1, y: rect.minY))
+            path.addQuadCurve(to: CGPoint(x: rect.midX, y: rect.maxY), control: CGPoint(x: rect.maxX - rect.width * 0.1, y: rect.maxY))
+            path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.midY), control: CGPoint(x: rect.minX + rect.width * 0.1, y: rect.maxY))
+        }
+    }
+}
+
+/// A single semibold serif character's outline, its ink bounds centered in the rect.
+private struct Glyph: Shape {
+    let character: String
+    let size: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let font = NSFont(descriptor: NSFont.systemFont(ofSize: size, weight: .semibold).fontDescriptor.withDesign(.serif)!, size: size)!
+        var glyph = CGGlyph()
+        let found = CTFontGetGlyphsForCharacters(font, Array(character.utf16), &glyph, 1)
+        assert(found, "No glyph for \(character) in \(font.fontName).")
+        guard let outline = CTFontCreatePathForGlyph(font, glyph, nil) else { return Path() }
+        let bounds = outline.boundingBoxOfPath
+        // Core Text outlines are y-up; flip, then move the ink center onto the rect center.
+        let transform = CGAffineTransform(translationX: rect.midX - bounds.midX, y: rect.midY + bounds.midY).scaledBy(x: 1, y: -1)
+        return Path(outline.copy(using: [transform]) ?? outline)
     }
 }
