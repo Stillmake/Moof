@@ -1,6 +1,20 @@
 import AppKit
 import SwiftUI
 
+enum MoofTheme: String, CaseIterable {
+    case standard = "default"
+    case eldenRing = "elden-ring"
+    case mario
+
+    var title: String {
+        switch self {
+        case .standard: "Default"
+        case .eldenRing: "Elden Ring"
+        case .mario: "Mario"
+        }
+    }
+}
+
 /// `moof://notify?title=…` payload. A repeated `id` replaces the card that is already on screen.
 struct MoofNotification: Identifiable {
     enum Style: String, CaseIterable {
@@ -46,6 +60,7 @@ struct MoofNotification: Identifiable {
     let message: String?
     let source: String?
     let style: Style
+    let theme: MoofTheme
     /// Custom card color; the foreground then follows its `isDark`.
     let background: NSColor?
     /// `nil` falls back to the per-style preference; `0` keeps the card until dismissed.
@@ -84,6 +99,8 @@ enum MoofCommand {
         case "notify":
             let style = MoofNotification.Style(rawValue: text("style")?.lowercased() ?? MoofNotification.Style.info.rawValue)
             assert(style != nil, "Unknown moof style \(query["style"] ?? ""); using info.")
+            let theme = MoofTheme(rawValue: text("theme")?.lowercased() ?? MoofPreferences.shared.theme.rawValue)
+            assert(theme != nil, "Unknown moof theme \(query["theme"] ?? ""); using the preference.")
             let height = text("height").flatMap(Int.init) ?? MoofPreferences.shared.defaultHeightLevel
             self = .notify(
                 MoofNotification(
@@ -93,6 +110,7 @@ enum MoofCommand {
                     message: text("body") ?? text("message"),
                     source: text("source"),
                     style: style ?? .info,
+                    theme: theme ?? MoofPreferences.shared.theme,
                     background: text("background").map(NSColor.init(hex:)),
                     duration: text("duration").flatMap(TimeInterval.init).map { min(max($0, 0), 3_600) },
                     heightLevel: min(max(height, MoofNotificationLayout.heightRange.lowerBound), MoofNotificationLayout.heightRange.upperBound),
@@ -127,17 +145,24 @@ struct MoofNotificationLayout {
     let messageRowHeight: CGFloat
     let showsMessage: Bool
     let bottomBarHeight: CGFloat = 26
+    let theme: MoofTheme
 
     init(notification: MoofNotification) {
         messageRowHeight = 25 + CGFloat(notification.heightLevel) * 28
         showsMessage = notification.message != nil
+        theme = notification.theme
     }
 
     var panelHeight: CGFloat {
         ceil(cardPadding * 2 + headerHeight + cardSpacing + (showsMessage ? messageRowHeight + cardSpacing : 0) + bottomBarHeight)
     }
 
+    /// Game themes are fixed boxes that ignore the height level.
     var size: CGSize {
-        CGSize(width: Self.panelWidth, height: panelHeight)
+        switch theme {
+        case .standard: CGSize(width: Self.panelWidth, height: panelHeight)
+        case .eldenRing: CGSize(width: 760, height: showsMessage ? 172 : 140)
+        case .mario: CGSize(width: 732, height: 212)
+        }
     }
 }

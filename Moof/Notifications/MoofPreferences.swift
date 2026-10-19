@@ -28,10 +28,18 @@ final class MoofPreferences {
         }
     }
 
+    /// Theme for cards whose URL has no `theme`.
+    var theme: MoofTheme {
+        didSet {
+            UserDefaults.standard.set(theme.rawValue, forKey: Key.theme)
+        }
+    }
+
     private enum Key {
         static let standardDismissDelay = "StandardDismissDelay"
         static let alertDismissDelay = "AlertDismissDelay"
         static let defaultHeightLevel = "DefaultHeightLevel"
+        static let theme = "Theme"
     }
 
     private init() {
@@ -39,6 +47,7 @@ final class MoofPreferences {
         standardDismissDelay = defaults.object(forKey: Key.standardDismissDelay) as? Int ?? 5
         alertDismissDelay = defaults.object(forKey: Key.alertDismissDelay) as? Int ?? 30
         defaultHeightLevel = defaults.object(forKey: Key.defaultHeightLevel) as? Int ?? 1
+        theme = defaults.string(forKey: Key.theme).flatMap(MoofTheme.init(rawValue:)) ?? .standard
     }
 
     func dismissDelay(for notification: MoofNotification) -> TimeInterval? {

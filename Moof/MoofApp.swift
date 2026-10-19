@@ -5,11 +5,41 @@ import SwiftUI
 struct MoofApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    static let cliReference = """
+        moof notify --title <text> [--body <text>] [--subtitle <text>] [--source <text>]
+          --style info|success|warning|error|critical
+          --theme default|elden-ring|mario
+          --background <hex>     custom card color; text adapts to it
+          --id <string>          same id replaces the card on screen
+          --duration <seconds>   0 keeps it until dismissed
+          --height 1…8  --sound <NSSound name>
+          --action <url>  --actionTitle <text>
+        moof dismiss --id <string>
+        moof dismiss-all
+        """
+
     /// Run as the `moof` CLI (`moof notify --title Hi --duration 0`): forward each `--key value`
-    /// pair as a `moof://` URL query item to the app and exit before any scene starts.
+    /// pair as a `moof://` URL query item to the app and exit before any scene starts. Invoked
+    /// through the `moof` symlink it never starts the app UI, even without a command.
     init() {
+        let commands = ["notify", "dismiss", "dismiss-all", "clear"]
         let arguments = CommandLine.arguments.dropFirst()
-        guard let command = arguments.first, ["notify", "dismiss", "dismiss-all", "clear"].contains(command) else { return }
+        let isSymlinkInvocation = URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent == "moof"
+        guard isSymlinkInvocation || arguments.first.map(commands.contains) == true else { return }
+        guard let command = arguments.first else {
+            print(
+                "moof — show a floating Moof notification card.\n\nUsage: moof notify --title <text> [options]\n       moof dismiss --id <string>\n       moof dismiss-all\n\nRun `moof --help` for all options."
+            )
+            exit(0)
+        }
+        if ["-h", "--help", "help"].contains(command) {
+            print("moof — show a floating Moof notification card.\n\n\(Self.cliReference)\n\nExample: moof notify --title \"Build done\" --body \"All green\" --style success")
+            exit(0)
+        }
+        guard commands.contains(command) else {
+            FileHandle.standardError.write(Data("moof: unknown command '\(command)'. Run `moof --help`.\n".utf8))
+            exit(2)
+        }
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&=+?#")
         var rest = arguments.dropFirst()
@@ -88,6 +118,9 @@ struct MenuBarView: View {
             Button("Dismiss All", systemImage: "xmark.circle") { center.handle(.dismissAll) }
                 .disabled(center.items.isEmpty)
             Divider()
+            Picker("Theme", systemImage: "paintpalette", selection: $preferences.theme) {
+                ForEach(MoofTheme.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
             Picker("Info / Success Dismiss", systemImage: "timer", selection: $preferences.standardDismissDelay) {
                 ForEach(dismissDelays, id: \.self) { Text($0 == 0 ? "Never" : "\($0)s").tag($0) }
             }
@@ -139,22 +172,12 @@ struct MenuBarView: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(
                     isCLIInstalled
-                        ? """
-                        To notify me on macOS, run the `moof` command:
-                        moof notify --title <text> [--body <text>] [--subtitle <text>] [--source <text>]
-                          --style info|success|warning|error|critical
-                          --background <hex>     custom card color; text adapts to it
-                          --id <string>          same id replaces the card on screen
-                          --duration <seconds>   0 keeps it until dismissed
-                          --height 1…8  --sound <NSSound name>
-                          --action <url>  --actionTitle <text>
-                        moof dismiss --id <string>
-                        moof dismiss-all
-                        """
+                        ? "To notify me on macOS, run the `moof` command:\n\(MoofApp.cliReference)"
                         : """
                         To notify me on macOS, run `open -g "<url>"` with one of these Moof URLs (URL-encode values):
                         moof://notify?title=<text>[&body=<text>][&subtitle=<text>][&source=<text>]
                           &style=info|success|warning|error|critical
+                          &theme=default|elden-ring|mario
                           &background=<hex>      custom card color; text adapts to it
                           &id=<string>           same id replaces the card on screen
                           &duration=<seconds>    0 keeps it until dismissed

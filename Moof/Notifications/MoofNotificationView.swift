@@ -6,13 +6,19 @@ struct MoofNotificationView: View {
     private let center = MoofNotificationCenter.shared
 
     var body: some View {
-        MoofNotificationCard(
-            notification: item.notification,
-            dismissState: item.dismissState,
-            close: { center.close(item.id) },
-            copy: { center.copyMessage(item.id) },
-            action: item.notification.action == nil ? nil : { center.performAction(item.id) }
-        )
+        let close = { center.close(item.id) }
+        let copy = { center.copyMessage(item.id) }
+        let action = item.notification.action == nil ? nil : { center.performAction(item.id) }
+        Group {
+            switch item.notification.theme {
+            case .standard:
+                MoofNotificationCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+            case .eldenRing:
+                EldenRingCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+            case .mario:
+                MarioCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+            }
+        }
         .contentShape(.rect)
         .onTapGesture { center.performAction(item.id) }
         .onHover { center.setHovering(item.id, $0) }
@@ -99,10 +105,7 @@ struct MoofNotificationCard: View {
         .frame(minHeight: layout.headerHeight, alignment: .top)
     }
 
-    private var showsDismissIndicator: Bool {
-        guard let dismissState else { return false }
-        return dismissState.totalInterval > 0 && !dismissState.wasCancelledByHover
-    }
+    private var showsDismissIndicator: Bool { dismissState?.isCountingDown == true }
 
     private var closeButton: some View {
         Button(action: { close?() }) {
@@ -111,8 +114,7 @@ struct MoofNotificationCard: View {
                 Circle().stroke(.secondary.opacity(0.18), lineWidth: showsDismissIndicator ? 2 : 0)
                 if showsDismissIndicator, let dismissState {
                     TimelineView(.periodic(from: .now, by: 0.1)) { context in
-                        let remaining = dismissState.deadline.map { max($0.timeIntervalSince(context.date), 0) } ?? 0
-                        let progress = min(max(remaining / dismissState.totalInterval, 0), 1)
+                        let progress = dismissState.progress(at: context.date)
                         Circle()
                             .trim(from: 0, to: progress)
                             .stroke(

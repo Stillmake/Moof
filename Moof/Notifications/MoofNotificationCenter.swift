@@ -11,6 +11,14 @@ final class MoofNotificationItem: ObservableObject, Identifiable {
         var remainingInterval: TimeInterval
         var deadline: Date?
         var wasCancelledByHover = false
+
+        var isCountingDown: Bool { totalInterval > 0 && !wasCancelledByHover }
+
+        /// Remaining fraction of the countdown, `1` at the start and `0` at dismissal.
+        func progress(at date: Date) -> Double {
+            let remaining = deadline.map { max($0.timeIntervalSince(date), 0) } ?? 0
+            return min(max(remaining / totalInterval, 0), 1)
+        }
     }
 
     let id: String
@@ -73,7 +81,7 @@ final class MoofNotificationCenter {
         if let item = items[notification.id] {
             item.notification = notification
             item.dismissState = nil
-            panels[notification.id]?.windowSize = MoofNotificationLayout(notification: notification).size
+            panels[notification.id]?.apply(notification)
             scheduleDismiss(notification.id)
             layoutWindows(animatedNewID: nil)
             return
@@ -195,13 +203,19 @@ final class MoofNotificationPanel {
 
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
         panel.isOpaque = false
         panel.isReleasedWhenClosed = false
         panel.level = item.notification.style == .critical ? .screenSaver : .statusBar
         panel.contentViewController = NSHostingController(rootView: MoofNotificationView(item: item))
+        apply(item.notification)
+    }
+
+    /// Game themes draw their own edges and shadows, which the rectangular window shadow would outline.
+    func apply(_ notification: MoofNotification) {
+        windowSize = MoofNotificationLayout(notification: notification).size
+        panel.hasShadow = notification.theme == .standard
     }
 
     func close() {
