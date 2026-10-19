@@ -34,22 +34,22 @@ struct MoofNotificationCard: View {
     var copy: (() -> Void)?
     var action: (() -> Void)?
 
-    private var layout: MoofNotificationLayout { MoofNotificationLayout(notification: notification) }
     private var foreground: Color? { notification.background.map { $0.isDark ? .white : .black } }
     private var accent: Color { foreground ?? notification.style.tint }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 28)
-        VStack(alignment: .leading, spacing: layout.cardSpacing) {
+        VStack(alignment: .leading, spacing: MoofNotificationLayout.cardSpacing) {
             header
             if let message = notification.message {
                 Text(message)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Font(MoofNotificationLayout.messageFont))
+                    .lineLimit(MoofNotificationLayout.maxLines)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(.primary)
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 8)
-                    .frame(height: layout.messageRowHeight)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background(accent.opacity(notification.style.isAlert ? 0.13 : 0.06), in: .rect(cornerRadius: 8))
             }
@@ -59,10 +59,10 @@ struct MoofNotificationCard: View {
                 }
                 pillButton("Copy", systemImage: "doc.on.doc", action: copy)
             }
-            .frame(height: layout.bottomBarHeight)
+            .frame(height: MoofNotificationLayout.bottomBarHeight)
         }
-        .padding(layout.cardPadding)
-        .frame(width: MoofNotificationLayout.panelWidth, height: layout.panelHeight, alignment: .topLeading)
+        .padding(MoofNotificationLayout.cardPadding)
+        .frame(width: MoofNotificationLayout.panelWidth, height: MoofNotificationLayout(notification: notification).size.height, alignment: .topLeading)
         .contentShape(shape)
         .foregroundStyle(foreground ?? .primary)
         .glassEffect(.regular.tint(notification.background.map(Color.init(nsColor:)) ?? notification.style.tint), in: shape)
@@ -77,7 +77,7 @@ struct MoofNotificationCard: View {
                     .foregroundStyle(accent)
                     .symbolEffect(.pulse, isActive: notification.style == .critical)
             }
-            .frame(width: layout.iconSize, height: layout.iconSize)
+            .frame(width: MoofNotificationLayout.iconSize, height: MoofNotificationLayout.iconSize)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(notification.title)
@@ -104,7 +104,7 @@ struct MoofNotificationCard: View {
 
             closeButton
         }
-        .frame(minHeight: layout.headerHeight, alignment: .top)
+        .frame(minHeight: MoofNotificationLayout.headerHeight, alignment: .top)
     }
 
     private var showsDismissIndicator: Bool { dismissState?.isCountingDown == true }

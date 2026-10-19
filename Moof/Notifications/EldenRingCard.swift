@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The in-game message band: a dark translucent strip fading out at both ends, centered serif
 /// text, a hairline divider, and gamepad-style prompts. The divider doubles as the countdown,
-/// its lit span shrinking toward the center. Style colors, icons and height levels are ignored.
+/// its lit span shrinking toward the center. Style colors and icons are ignored.
 struct EldenRingCard: View {
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
@@ -25,15 +25,17 @@ struct EldenRingCard: View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
                 Text(notification.title)
-                    .font(.system(size: 18, design: .serif))
-                    .tracking(1.4)
+                    .font(Font(MoofNotificationLayout.eldenRingTitleFont))
+                    .kerning(1.4)
                     .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let message = notification.message {
                     Text(message)
-                        .font(.system(size: 13, design: .serif))
-                        .tracking(0.6)
+                        .font(Font(MoofNotificationLayout.eldenRingMessageFont))
+                        .kerning(0.6)
                         .opacity(0.72)
-                        .lineLimit(2)
+                        .lineLimit(MoofNotificationLayout.maxLines - 1)
+                        .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.center)
                         .textSelection(.enabled)
                 }

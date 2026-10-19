@@ -67,7 +67,6 @@ struct MoofNotification: Identifiable {
     let background: NSColor?
     /// `nil` falls back to the per-style preference; `0` keeps the card until dismissed.
     let duration: TimeInterval?
-    let heightLevel: Int
     let sound: NSSound.Name?
     let action: URL?
     let actionTitle: String
@@ -103,7 +102,6 @@ enum MoofCommand {
             assert(style != nil, "Unknown moof style \(query["style"] ?? ""); using info.")
             let theme = MoofTheme(rawValue: text("theme")?.lowercased() ?? MoofPreferences.shared.theme.rawValue)
             assert(theme != nil, "Unknown moof theme \(query["theme"] ?? ""); using the preference.")
-            let height = text("height").flatMap(Int.init) ?? MoofPreferences.shared.defaultHeightLevel
             self = .notify(
                 MoofNotification(
                     id: text("id") ?? UUID().uuidString,
@@ -115,7 +113,6 @@ enum MoofCommand {
                     theme: theme ?? MoofPreferences.shared.theme,
                     background: text("background").map(NSColor.init(hex:)),
                     duration: text("duration").flatMap(TimeInterval.init).map { min(max($0, 0), 3_600) },
-                    heightLevel: min(max(height, MoofNotificationLayout.heightRange.lowerBound), MoofNotificationLayout.heightRange.upperBound),
                     sound: text("sound").map { NSSound.Name($0) },
                     action: text("action").flatMap(URL.init(string:)),
                     actionTitle: text("actiontitle") ?? "Open"
@@ -136,36 +133,73 @@ enum MoofCommand {
     }
 }
 
+/// Panel sizes: each theme's fixed chrome plus its text measured with TextKit, at most `maxLines`
+/// lines. The cards draw the text with the same `NSFont`s, line spacing and kerning.
 struct MoofNotificationLayout {
-    static let panelWidth: CGFloat = 540
-    static let heightRange = 1...8
+    static let maxLines = 4
 
-    let cardPadding: CGFloat = 14
-    let cardSpacing: CGFloat = 10
-    let headerHeight: CGFloat = 38
-    let iconSize: CGFloat = 30
-    let messageRowHeight: CGFloat
-    let showsMessage: Bool
-    let bottomBarHeight: CGFloat = 26
-    let theme: MoofTheme
+    static let panelWidth: CGFloat = 540
+    static let cardPadding: CGFloat = 14
+    static let cardSpacing: CGFloat = 10
+    static let headerHeight: CGFloat = 38
+    static let iconSize: CGFloat = 30
+    static let bottomBarHeight: CGFloat = 26
+    static let messageFont = NSFont.monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+
+    static let eldenRingTitleFont = serif(size: 18)
+    static let eldenRingMessageFont = serif(size: 13)
+    static let marioFont = NSFont.systemFont(ofSize: 26, weight: .semibold)
+    static let marioLineSpacing: CGFloat = 14
+    static let hollowKnightFont = serif(size: 20)
+    static let hollowKnightLineSpacing: CGFloat = 6
+
+    let size: CGSize
 
     init(notification: MoofNotification) {
-        messageRowHeight = 25 + CGFloat(notification.heightLevel) * 28
-        showsMessage = notification.message != nil
-        theme = notification.theme
-    }
-
-    var panelHeight: CGFloat {
-        ceil(cardPadding * 2 + headerHeight + cardSpacing + (showsMessage ? messageRowHeight + cardSpacing : 0) + bottomBarHeight)
-    }
-
-    /// Game themes are fixed boxes that ignore the height level.
-    var size: CGSize {
-        switch theme {
-        case .standard: CGSize(width: Self.panelWidth, height: panelHeight)
-        case .eldenRing: CGSize(width: 760, height: showsMessage ? 172 : 140)
-        case .mario: CGSize(width: 732, height: 212)
-        case .hollowKnight: CGSize(width: 720, height: 244)
+        let paragraph = [notification.title, notification.message].compactMap(\.self).joined(separator: " ")
+        switch notification.theme {
+        case .standard:
+            // Message box: 6pt vertical and 8pt horizontal padding inside the card padding.
+            let message = notification.message.map {
+                Self.textHeight($0, font: Self.messageFont, width: Self.panelWidth - Self.cardPadding * 2 - 16) + 12 + Self.cardSpacing
+            }
+            size = CGSize(width: Self.panelWidth, height: Self.cardPadding * 2 + Self.headerHeight + Self.cardSpacing + (message ?? 0) + Self.bottomBarHeight)
+        case .eldenRing:
+            // 120pt side margins, 36pt above and below the text, then the divider and the 46pt prompt row.
+            let title = Self.textHeight(notification.title, font: Self.eldenRingTitleFont, width: 520, kern: 1.4, maxLines: 1)
+            let message = notification.message.map {
+                10 + Self.textHeight($0, font: Self.eldenRingMessageFont, width: 520, kern: 0.6, maxLines: Self.maxLines - 1)
+            }
+            size = CGSize(width: 760, height: 36 + title + (message ?? 0) + 36 + 1 + 46)
+        case .mario:
+            // 6pt shadow margins, the 34pt tab, 30pt above the text and 52pt below it for the ▼.
+            let text = Self.textHeight(paragraph, font: Self.marioFont, width: 720 - 52 - 160, lineSpacing: Self.marioLineSpacing)
+            size = CGSize(width: 732, height: 12 + 34 + 30 + text + 52)
+        case .hollowKnight:
+            // 64pt down to the text under the top fleur, 120pt below it for the panel and bottom fleur.
+            let text = Self.textHeight(paragraph, font: Self.hollowKnightFont, width: 720 - 88, lineSpacing: Self.hollowKnightLineSpacing)
+            size = CGSize(width: 720, height: 64 + text + 120)
         }
+    }
+
+    static func textHeight(_ string: String, font: NSFont, width: CGFloat, lineSpacing: CGFloat = 0, kern: CGFloat = 0, maxLines: Int = maxLines) -> CGFloat {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = lineSpacing
+        let storage = NSTextStorage(string: string, attributes: [.font: font, .kern: kern, .paragraphStyle: paragraphStyle])
+        let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        container.maximumNumberOfLines = maxLines
+        let manager = NSLayoutManager()
+        manager.addTextContainer(container)
+        storage.addLayoutManager(manager)
+        // Layout is lazy; `usedRect` alone reports zero.
+        manager.ensureLayout(for: container)
+        return ceil(manager.usedRect(for: container).height)
+    }
+
+    private static func serif(size: CGFloat) -> NSFont {
+        let descriptor = NSFont.systemFont(ofSize: size).fontDescriptor.withDesign(.serif)
+        assert(descriptor != nil, "The system serif design should exist; using the default design.")
+        return descriptor.flatMap { NSFont(descriptor: $0, size: size) } ?? .systemFont(ofSize: size)
     }
 }

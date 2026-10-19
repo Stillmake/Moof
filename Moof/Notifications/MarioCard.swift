@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A Mario-game dialog box: a slanted dark box with diagonal stripes and a white border, a white
 /// speaker tab growing out of its top-left edge, bold text, and a bouncing ▼ that closes the card.
-/// A white bar along the bottom edge is the countdown. Style colors, icons and height levels are ignored.
+/// A white bar along the bottom edge is the countdown. Style colors and icons are ignored.
 struct MarioCard: View {
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
@@ -57,9 +57,10 @@ struct MarioCard: View {
                 .offset(x: MarioDialogShape.slant * (card.height - MarioDialogShape.tabHeight) / 2 + card.height * MarioDialogShape.slant / 2)
 
             Text([notification.title, notification.message].compactMap(\.self).joined(separator: " "))
-                .font(.system(size: 26, weight: .semibold))
-                .lineSpacing(14)
-                .lineLimit(2)
+                .font(Font(MoofNotificationLayout.marioFont))
+                .lineSpacing(MoofNotificationLayout.marioLineSpacing)
+                .lineLimit(MoofNotificationLayout.maxLines)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
                 .foregroundStyle(ink)
                 .padding(.leading, 52)

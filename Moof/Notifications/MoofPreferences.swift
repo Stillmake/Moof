@@ -21,13 +21,6 @@ final class MoofPreferences {
         }
     }
 
-    var defaultHeightLevel: Int {
-        didSet {
-            assert(MoofNotificationLayout.heightRange.contains(defaultHeightLevel), "Height level is out of range.")
-            UserDefaults.standard.set(defaultHeightLevel, forKey: Key.defaultHeightLevel)
-        }
-    }
-
     /// Theme for cards whose URL has no `theme`.
     var theme: MoofTheme {
         didSet {
@@ -38,7 +31,6 @@ final class MoofPreferences {
     private enum Key {
         static let standardDismissDelay = "StandardDismissDelay"
         static let alertDismissDelay = "AlertDismissDelay"
-        static let defaultHeightLevel = "DefaultHeightLevel"
         static let theme = "Theme"
     }
 
@@ -46,7 +38,6 @@ final class MoofPreferences {
         let defaults = UserDefaults.standard
         standardDismissDelay = defaults.object(forKey: Key.standardDismissDelay) as? Int ?? 5
         alertDismissDelay = defaults.object(forKey: Key.alertDismissDelay) as? Int ?? 30
-        defaultHeightLevel = defaults.object(forKey: Key.defaultHeightLevel) as? Int ?? 1
         theme = defaults.string(forKey: Key.theme).flatMap(MoofTheme.init(rawValue:)) ?? .standard
     }
 

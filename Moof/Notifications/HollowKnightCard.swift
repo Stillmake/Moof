@@ -2,8 +2,8 @@ import SwiftUI
 
 /// A Hollow Knight dialog: a dark, soft-edged panel with serif text, a fleur ornament straddling
 /// its top edge and a smaller one on its bottom edge. The bottom fleur is the countdown, its lit
-/// part shrinking toward the center, and closes the card when clicked. Style colors, icons and
-/// height levels are ignored.
+/// part shrinking toward the center, and closes the card when clicked. Style colors and icons are
+/// ignored.
 struct HollowKnightCard: View {
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
@@ -29,9 +29,10 @@ struct HollowKnightCard: View {
                 .padding(.bottom, 24)
 
             Text([notification.title, notification.message].compactMap(\.self).joined(separator: " "))
-                .font(.system(size: 20, design: .serif))
-                .lineSpacing(6)
-                .lineLimit(3)
+                .font(Font(MoofNotificationLayout.hollowKnightFont))
+                .lineSpacing(MoofNotificationLayout.hollowKnightLineSpacing)
+                .lineLimit(MoofNotificationLayout.maxLines)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
                 .foregroundStyle(ink)
                 .shadow(color: .black.opacity(0.35), radius: 2, y: 1)

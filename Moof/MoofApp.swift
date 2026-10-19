@@ -12,7 +12,7 @@ struct MoofApp: App {
           --background <hex>     custom card color; text adapts to it
           --id <string>          same id replaces the card on screen
           --duration <seconds>   0 keeps it until dismissed
-          --height 1…8  --sound <NSSound name>
+          --sound <NSSound name>  text over 4 lines ends with …
           --action <url>  --actionTitle <text>
         moof dismiss --id <string>
         moof dismiss-all
@@ -127,9 +127,6 @@ struct MenuBarView: View {
             Picker("Warning / Error Dismiss", systemImage: "exclamationmark.triangle", selection: $preferences.alertDismissDelay) {
                 ForEach(dismissDelays, id: \.self) { Text($0 == 0 ? "Never" : "\($0)s").tag($0) }
             }
-            Picker("Default Height", systemImage: "arrow.up.and.down", selection: $preferences.defaultHeightLevel) {
-                ForEach(MoofNotificationLayout.heightRange, id: \.self) { Text("Level \($0)").tag($0) }
-            }
             Divider()
             Button("Open at Login", systemImage: "power.circle") {
                 do {
@@ -181,7 +178,7 @@ struct MenuBarView: View {
                           &background=<hex>      custom card color; text adapts to it
                           &id=<string>           same id replaces the card on screen
                           &duration=<seconds>    0 keeps it until dismissed
-                          &height=1…8  &sound=<NSSound name>
+                          &sound=<NSSound name>  text over 4 lines ends with …
                           &action=<url>  &actionTitle=<text>
                         moof://dismiss?id=<string>
                         moof://dismiss-all
