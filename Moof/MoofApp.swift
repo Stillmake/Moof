@@ -74,6 +74,7 @@ struct SettingsView: View {
                     """
                     moof://notify?title=…&body=…&subtitle=…&source=…
                       style=info|success|warning|error|critical
+                      background=<hex>     custom card color
                       id=<string>          same id replaces the card
                       duration=<seconds>   0 or sticky=1 keeps it
                       height=1…8  sound=<NSSound name>

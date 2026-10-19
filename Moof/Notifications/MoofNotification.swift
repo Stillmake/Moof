@@ -8,10 +8,10 @@ struct MoofNotification: Identifiable {
 
         var tint: Color {
             switch self {
-            case .info: .blue
-            case .success: .green
-            case .warning: .orange
-            case .error, .critical: .red
+            case .info: Color(nsColor: .systemBlue)
+            case .success: Color(nsColor: .systemGreen)
+            case .warning: Color(nsColor: .systemOrange)
+            case .error, .critical: Color(nsColor: .systemRed)
             }
         }
 
@@ -46,6 +46,8 @@ struct MoofNotification: Identifiable {
     let message: String?
     let source: String?
     let style: Style
+    /// Custom card color; the foreground then follows its `isDark`.
+    let background: NSColor?
     /// `nil` falls back to the per-style preference; `0` keeps the card until dismissed.
     let duration: TimeInterval?
     let heightLevel: Int
@@ -96,6 +98,7 @@ enum MoofCommand {
                     message: text("body") ?? text("message"),
                     source: text("source"),
                     style: style ?? .info,
+                    background: text("background").map(NSColor.init(hex:)),
                     duration: flag("sticky") == true ? 0 : duration,
                     heightLevel: min(max(height, MoofNotificationLayout.heightRange.lowerBound), MoofNotificationLayout.heightRange.upperBound),
                     sound: text("sound").map { NSSound.Name($0) },

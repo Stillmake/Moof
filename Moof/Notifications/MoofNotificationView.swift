@@ -20,11 +20,6 @@ struct MoofNotificationView: View {
 }
 
 struct MoofNotificationCard: View {
-    private static let cornerRadius: CGFloat = {
-        if #available(macOS 26, *) { return 28 }
-        return 20
-    }()
-
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
     var close: (() -> Void)?
@@ -32,10 +27,11 @@ struct MoofNotificationCard: View {
     var action: (() -> Void)?
 
     private var layout: MoofNotificationLayout { MoofNotificationLayout(notification: notification) }
-    private var tint: Color { notification.style.tint }
+    private var foreground: Color? { notification.background.map { $0.isDark ? .white : .black } }
+    private var accent: Color { foreground ?? notification.style.tint }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius)
+        let shape = RoundedRectangle(cornerRadius: 28)
         VStack(alignment: .leading, spacing: layout.cardSpacing) {
             header
             if let message = notification.message {
@@ -47,7 +43,7 @@ struct MoofNotificationCard: View {
                     .padding(.horizontal, 8)
                     .frame(height: layout.messageRowHeight)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .background(tint.opacity(notification.style.isAlert ? 0.13 : 0.06), in: .rect(cornerRadius: 8))
+                    .background(accent.opacity(notification.style.isAlert ? 0.13 : 0.06), in: .rect(cornerRadius: 8))
             }
             HStack(spacing: 8) {
                 if let action {
@@ -60,31 +56,17 @@ struct MoofNotificationCard: View {
         .padding(layout.cardPadding)
         .frame(width: MoofNotificationLayout.panelWidth, height: layout.panelHeight, alignment: .topLeading)
         .contentShape(shape)
-        .overlay {
-            shape
-                .stroke(tint, lineWidth: notification.style == .critical ? 3 : 1)
-                .blur(radius: 6)
-                .clipShape(shape)
-        }
-        .background {
-            if #available(macOS 26, *) {
-                shape.fill(Color.white.opacity(0.0001)).glassEffect(.regular, in: shape)
-            } else {
-                ZStack {
-                    shape.fill(.thinMaterial)
-                    shape.fill(tint.opacity(notification.style == .success ? 0.04 : 0.1))
-                }
-            }
-        }
+        .foregroundStyle(foreground ?? .primary)
+        .glassEffect(.regular.tint(notification.background.map(Color.init(nsColor:)) ?? notification.style.tint), in: shape)
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
-                Circle().fill(tint.opacity(0.2))
+                Circle().fill(accent.opacity(0.2))
                 Image(systemName: notification.style.symbol)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .foregroundStyle(accent)
                     .symbolEffect(.pulse, isActive: notification.style == .critical)
             }
             .frame(width: layout.iconSize, height: layout.iconSize)
@@ -98,7 +80,7 @@ struct MoofNotificationCard: View {
                 HStack(spacing: 8) {
                     Text(notification.subtitle ?? notification.style.title)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(tint)
+                        .foregroundStyle(accent)
                         .lineLimit(1)
                     if let source = notification.source {
                         metadataLabel(source, systemImage: "app.badge")
@@ -125,8 +107,8 @@ struct MoofNotificationCard: View {
     private var closeButton: some View {
         Button(action: { close?() }) {
             ZStack {
-                Circle().fill(Color.secondary.opacity(0.08))
-                Circle().stroke(Color.secondary.opacity(0.18), lineWidth: showsDismissIndicator ? 2 : 0)
+                Circle().fill(.secondary.opacity(0.08))
+                Circle().stroke(.secondary.opacity(0.18), lineWidth: showsDismissIndicator ? 2 : 0)
                 if showsDismissIndicator, let dismissState {
                     TimelineView(.periodic(from: .now, by: 0.1)) { context in
                         let remaining = dismissState.deadline.map { max($0.timeIntervalSince(context.date), 0) } ?? 0
@@ -166,7 +148,7 @@ struct MoofNotificationCard: View {
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.08), in: Capsule())
+                .background(.secondary.opacity(0.08), in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
