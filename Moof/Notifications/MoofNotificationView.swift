@@ -17,6 +17,8 @@ struct MoofNotificationView: View {
                 EldenRingCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
             case .mario:
                 MarioCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+            case .hollowKnight:
+                HollowKnightCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
             }
         }
         .contentShape(.rect)

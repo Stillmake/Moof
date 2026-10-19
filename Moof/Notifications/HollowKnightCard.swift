@@ -1,0 +1,87 @@
+import SwiftUI
+
+/// A Hollow Knight dialog: a dark, soft-edged panel with serif text, a fleur ornament straddling
+/// its top edge and a smaller one on its bottom edge. The bottom fleur is the countdown, its lit
+/// part shrinking toward the center, and closes the card when clicked. Style colors, icons and
+/// height levels are ignored.
+struct HollowKnightCard: View {
+    let notification: MoofNotification
+    var dismissState: MoofNotificationItem.DismissState?
+    var close: (() -> Void)?
+    var copy: (() -> Void)?
+    var action: (() -> Void)?
+
+    var body: some View {
+        let size = MoofNotificationLayout(notification: notification).size
+        let ink = notification.background.map { $0.isDark ? Color.white : Color.black } ?? .white
+        let panel = notification.background.map { Color(nsColor: $0).opacity(0.7) } ?? Color.black.opacity(0.58)
+        let bottomFleur = Image("HollowKnightOrnamentBottom")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 230)
+        ZStack(alignment: .top) {
+            // Blurred inside the panel's margins so its feathered edge is not clipped by the window.
+            RoundedRectangle(cornerRadius: 8)
+                .fill(panel)
+                .blur(radius: 6)
+                .padding(.horizontal, 14)
+                .padding(.top, 28)
+                .padding(.bottom, 24)
+
+            Text([notification.title, notification.message].compactMap(\.self).joined(separator: " "))
+                .font(.system(size: 20, design: .serif))
+                .lineSpacing(6)
+                .lineLimit(3)
+                .textSelection(.enabled)
+                .foregroundStyle(ink)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 44)
+                .padding(.top, 64)
+
+            // 4pt from the window edges so the ornament shadows are not clipped.
+            Image("HollowKnightOrnamentTop")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 320)
+                .foregroundStyle(ink)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .padding(.top, 4)
+
+            Button(action: { close?() }) {
+                ZStack {
+                    bottomFleur.foregroundStyle(ink.opacity(0.25))
+                    if let dismissState, dismissState.isCountingDown {
+                        TimelineView(.animation) { context in
+                            bottomFleur
+                                .foregroundStyle(ink)
+                                .mask {
+                                    GeometryReader { proxy in
+                                        Rectangle()
+                                            .frame(width: proxy.size.width * dismissState.progress(at: context.date))
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                }
+                        }
+                    } else {
+                        bottomFleur.foregroundStyle(ink)
+                    }
+                }
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help("Close")
+            .padding(.bottom, 4)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+        }
+        .frame(width: size.width, height: size.height)
+        .contextMenu {
+            if let action {
+                Button(notification.actionTitle, systemImage: "arrow.up.forward.app", action: action)
+            }
+            Button("Copy", systemImage: "doc.on.doc") { copy?() }
+            Button("Close", systemImage: "xmark") { close?() }
+        }
+    }
+}

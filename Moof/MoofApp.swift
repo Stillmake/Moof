@@ -8,7 +8,7 @@ struct MoofApp: App {
     static let cliReference = """
         moof notify --title <text> [--body <text>] [--subtitle <text>] [--source <text>]
           --style info|success|warning|error|critical
-          --theme default|elden-ring|mario
+          --theme default|elden-ring|mario|hollow-knight
           --background <hex>     custom card color; text adapts to it
           --id <string>          same id replaces the card on screen
           --duration <seconds>   0 keeps it until dismissed
@@ -177,7 +177,7 @@ struct MenuBarView: View {
                         To notify me on macOS, run `open -g "<url>"` with one of these Moof URLs (URL-encode values):
                         moof://notify?title=<text>[&body=<text>][&subtitle=<text>][&source=<text>]
                           &style=info|success|warning|error|critical
-                          &theme=default|elden-ring|mario
+                          &theme=default|elden-ring|mario|hollow-knight
                           &background=<hex>      custom card color; text adapts to it
                           &id=<string>           same id replaces the card on screen
                           &duration=<seconds>    0 keeps it until dismissed

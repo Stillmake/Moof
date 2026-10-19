@@ -5,12 +5,14 @@ enum MoofTheme: String, CaseIterable {
     case standard = "default"
     case eldenRing = "elden-ring"
     case mario
+    case hollowKnight = "hollow-knight"
 
     var title: String {
         switch self {
         case .standard: "Default"
         case .eldenRing: "Elden Ring"
         case .mario: "Mario"
+        case .hollowKnight: "Hollow Knight"
         }
     }
 }
@@ -163,6 +165,7 @@ struct MoofNotificationLayout {
         case .standard: CGSize(width: Self.panelWidth, height: panelHeight)
         case .eldenRing: CGSize(width: 760, height: showsMessage ? 172 : 140)
         case .mario: CGSize(width: 732, height: 212)
+        case .hollowKnight: CGSize(width: 720, height: 244)
         }
     }
 }
