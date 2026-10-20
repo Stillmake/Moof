@@ -78,17 +78,17 @@ struct MoofApp: App {
         // Open the URL with the app bundle this executable belongs to, so the card reaches this copy
         // of Moof even when another one (a Debug build, the DMG) also handles `moof://`. `argv[0]` is
         // unusable here: a shell that finds `moof` on PATH passes the bare name.
-        let open = Process()
-        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments = ["-g", "-a", Bundle.main.bundleURL.path, url.absoluteString]
+        let opener = Process()
+        opener.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        opener.arguments = ["-g", "-a", Bundle.main.bundleURL.path, url.absoluteString]
         do {
-            try open.run()
+            try opener.run()
         } catch {
             FileHandle.standardError.write(Data("moof: \(error.localizedDescription)\n".utf8))
             exit(1)
         }
-        open.waitUntilExit()
-        guard open.terminationStatus == 0 else { exit(1) }
+        opener.waitUntilExit()
+        guard opener.terminationStatus == 0 else { exit(1) }
         print(id)
         exit(0)
     }
