@@ -6,7 +6,7 @@ import SwiftUI
 
 @MainActor
 final class MoofNotificationItem: ObservableObject, Identifiable {
-    struct DismissState {
+    struct DismissState: Codable {
         var totalInterval: TimeInterval
         var remainingInterval: TimeInterval
         var deadline: Date?
@@ -43,6 +43,7 @@ final class MoofNotificationCenter {
     @ObservationIgnored private var dismissWorkItems: [String: DispatchWorkItem] = [:]
     @ObservationIgnored private var order: [String] = []
     @ObservationIgnored private var layoutMonitoring: AnyCancellable?
+    @ObservationIgnored private var saveWorkItem: DispatchWorkItem?
     @ObservationIgnored private let preferences = MoofPreferences.shared
 
     private let topOffset: CGFloat = 24
@@ -66,17 +67,10 @@ final class MoofNotificationCenter {
             show(notification)
         case .dismiss(let id):
             close(id)
-        case .dismissAll:
-            order.forEach(close)
         }
     }
 
     func show(_ notification: MoofNotification) {
-        if let soundName = notification.sound {
-            let sound = NSSound(named: soundName)
-            assert(sound != nil, "Unknown system sound \(soundName); playing beep.")
-            if sound?.play() != true { NSSound.beep() }
-        }
 
         if let item = items[notification.id] {
             item.notification = notification
@@ -87,15 +81,57 @@ final class MoofNotificationCenter {
             order.removeAll { $0 == notification.id }
             order.append(notification.id)
             layoutWindows(animatedNewID: nil)
+            scheduleSave()
             return
         }
 
-        let item = MoofNotificationItem(notification: notification)
+        present(MoofNotificationItem(notification: notification))
+    }
+
+    /// Shows the cards saved by the previous run. Cards whose deadline
+    /// passed while Moof was not running are dropped; the rest resume their countdowns.
+    func restore() {
+        assert(items.isEmpty, "Restore runs once, before any card is shown.")
+        let now = Date()
+        for record in MoofNotificationStore.load() {
+            var dismissState = record.dismissState
+            if let deadline = dismissState?.deadline {
+                guard deadline > now else { continue }
+                // `scheduleDismiss` resumes from the remaining interval and sets a new deadline.
+                dismissState?.remainingInterval = deadline.timeIntervalSince(now)
+                dismissState?.deadline = nil
+            }
+            let item = MoofNotificationItem(notification: record.notification)
+            item.dismissState = dismissState
+            present(item)
+        }
+        scheduleSave()
+    }
+
+    /// Writes the cards immediately, for app termination.
+    func saveNow() {
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        MoofNotificationStore.save(order.compactMap { items[$0] }.map { .init(notification: $0.notification, dismissState: $0.dismissState) })
+    }
+
+    private func present(_ item: MoofNotificationItem) {
         items[item.id] = item
         scheduleDismiss(item.id)
         panels[item.id] = MoofNotificationPanel(item: item, screen: targetScreen())
         order.append(item.id)
         layoutWindows(animatedNewID: item.id)
+        scheduleSave()
+    }
+
+    /// Coalesces bursts of changes, such as Preview All, into one write.
+    private func scheduleSave() {
+        saveWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.saveNow() }
+        }
+        saveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
     }
 
     func close(_ id: String) {
@@ -106,6 +142,7 @@ final class MoofNotificationCenter {
         items[id] = nil
         order.removeAll { $0 == id }
         layoutWindows(animatedNewID: nil, animateExisting: true)
+        scheduleSave()
     }
 
     func performAction(_ id: String) {
@@ -128,6 +165,7 @@ final class MoofNotificationCenter {
             item.dismissState?.remainingInterval = max(deadline.timeIntervalSinceNow, 0)
             item.dismissState?.deadline = nil
             item.dismissState?.wasCancelledByHover = true
+            scheduleSave()
         }
         dismissWorkItems[id]?.cancel()
         dismissWorkItems[id] = nil

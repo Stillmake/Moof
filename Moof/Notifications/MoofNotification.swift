@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum MoofTheme: String, CaseIterable {
+enum MoofTheme: String, CaseIterable, Codable {
     case standard = "default"
     case eldenRing = "elden-ring"
     case mario
@@ -19,7 +19,7 @@ enum MoofTheme: String, CaseIterable {
 
 /// `moof://notify?title=…` payload. A repeated `id` replaces the card that is already on screen.
 struct MoofNotification: Identifiable {
-    enum Style: String, CaseIterable {
+    enum Style: String, CaseIterable, Codable {
         case info, success, warning, error, critical
 
         var tint: Color {
@@ -66,21 +66,73 @@ struct MoofNotification: Identifiable {
     let background: NSColor?
     /// `nil` falls back to the per-style preference; `0` keeps the card until dismissed.
     let duration: TimeInterval?
-    let sound: NSSound.Name?
     let action: URL?
     let actionTitle: String
-    let createdAt = Date()
+    /// Set on arrival; decoding restores the original time.
+    var createdAt = Date()
+
+    /// An id for a card whose sender gave none: 8 random uppercase hex digits. Ids only need to
+    /// be unique among the few cards on screen, and stay short enough to type in `moof dismiss`.
+    static func newID() -> String {
+        String(format: "%08X", UInt32.random(in: .min ... .max))
+    }
+}
+
+/// Encodes `background` as an sRGB hex string, the form `moof://notify` accepts.
+extension MoofNotification: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, title, body, source, style, theme, background, duration, action, actionTitle, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decode(String.self, forKey: .body)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        style = try container.decode(Style.self, forKey: .style)
+        theme = try container.decode(MoofTheme.self, forKey: .theme)
+        background = try container.decodeIfPresent(String.self, forKey: .background).map(NSColor.init(hex:))
+        duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
+        action = try container.decodeIfPresent(URL.self, forKey: .action)
+        actionTitle = try container.decode(String.self, forKey: .actionTitle)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(body, forKey: .body)
+        try container.encodeIfPresent(source, forKey: .source)
+        try container.encode(style, forKey: .style)
+        try container.encode(theme, forKey: .theme)
+        try container.encodeIfPresent(
+            background.flatMap { $0.usingColorSpace(.sRGB) }.map {
+                String(format: "%02X%02X%02X", Int(($0.redComponent * 255).rounded()), Int(($0.greenComponent * 255).rounded()), Int(($0.blueComponent * 255).rounded()))
+            },
+            forKey: .background
+        )
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(action, forKey: .action)
+        try container.encode(actionTitle, forKey: .actionTitle)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
 }
 
 enum MoofCommand {
     case notify(MoofNotification)
     case dismiss(id: String)
-    case dismissAll
 
-    init?(url: URL) {
+    /// Why a `moof://` URL was rejected, in words the CLI prints as is.
+    struct Failure: Error {
+        let message: String
+    }
+
+    init(url: URL) throws {
         guard url.scheme?.lowercased() == "moof",
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        else { return nil }
+        else { throw Failure(message: "not a moof:// URL: \(url.absoluteString)") }
 
         var query: [String: String] = [:]
         for item in components.queryItems ?? [] {
@@ -93,40 +145,56 @@ enum MoofCommand {
 
         switch url.host?.lowercased() {
         case "notify":
-            guard let body = text("body") else {
-                assertionFailure("moof://notify requires a body.")
-                return nil
+            guard let body = text("body") else { throw Failure(message: "notify requires a body") }
+            let style = try text("style").map {
+                guard let style = MoofNotification.Style(rawValue: $0.lowercased()) else {
+                    throw Failure(message: "unknown style '\($0)'; use info, success, warning, error or critical")
+                }
+                return style
             }
-            let style = MoofNotification.Style(rawValue: text("style")?.lowercased() ?? MoofNotification.Style.info.rawValue)
-            assert(style != nil, "Unknown moof style \(query["style"] ?? ""); using info.")
-            let theme = MoofTheme(rawValue: text("theme")?.lowercased() ?? MoofPreferences.shared.theme.rawValue)
-            assert(theme != nil, "Unknown moof theme \(query["theme"] ?? ""); using the preference.")
+            let theme = try text("theme").map {
+                guard let theme = MoofTheme(rawValue: $0.lowercased()) else {
+                    throw Failure(message: "unknown theme '\($0)'; use default, elden-ring, mario or hollow-knight")
+                }
+                return theme
+            }
+            let background = try text("background").map {
+                guard $0.wholeMatch(of: /#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})/) != nil else {
+                    throw Failure(message: "background '\($0)' is not a 3- or 6-digit hex color")
+                }
+                return NSColor(hex: $0)
+            }
+            let duration = try text("duration").map {
+                guard let seconds = TimeInterval($0), (0...3_600).contains(seconds) else {
+                    throw Failure(message: "duration '\($0)' must be 0 to 3600 seconds")
+                }
+                return seconds
+            }
+            let action = try text("action").map {
+                guard let action = URL(string: $0), action.scheme != nil else {
+                    throw Failure(message: "action '\($0)' is not a URL with a scheme")
+                }
+                return action
+            }
             self = .notify(
                 MoofNotification(
-                    id: text("id") ?? UUID().uuidString,
+                    id: text("id") ?? MoofNotification.newID(),
                     title: text("title") ?? "Moof",
                     body: body,
                     source: text("source"),
                     style: style ?? .info,
                     theme: theme ?? MoofPreferences.shared.theme,
-                    background: text("background").map(NSColor.init(hex:)),
-                    duration: text("duration").flatMap(TimeInterval.init).map { min(max($0, 0), 3_600) },
-                    sound: text("sound").map { NSSound.Name($0) },
-                    action: text("action").flatMap(URL.init(string:)),
+                    background: background,
+                    duration: duration,
+                    action: action,
                     actionTitle: text("actiontitle") ?? "Open"
                 )
             )
         case "dismiss":
-            guard let id = text("id") else {
-                assertionFailure("moof://dismiss requires an id.")
-                return nil
-            }
+            guard let id = text("id") else { throw Failure(message: "dismiss requires an id") }
             self = .dismiss(id: id)
-        case "dismiss-all", "clear":
-            self = .dismissAll
         default:
-            assertionFailure("Unknown moof command \(url.absoluteString).")
-            return nil
+            throw Failure(message: "unknown command '\(url.host ?? "")'; use notify or dismiss")
         }
     }
 }

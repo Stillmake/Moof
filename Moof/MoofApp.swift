@@ -12,23 +12,23 @@ struct MoofApp: App {
           --background <hex>     custom card color; text adapts to it
           --id <string>          same id replaces the card on screen
           --duration <seconds>   0 keeps it until dismissed
-          --sound <NSSound name>  text over 4 lines ends with …
           --action <url>  --actionTitle <text>
+          text over 4 lines ends with …
         moof dismiss --id <string>
-        moof dismiss-all
+        Prints the card's id; errors go to stderr. Exit 0 on success, 1 on failure, 2 on bad usage.
         """
 
     /// Run as the `moof` CLI (`moof notify --title Hi --duration 0`): forward each `--key value`
-    /// pair as a `moof://` URL query item to the app and exit before any scene starts. Invoked
-    /// through the `moof` symlink it never starts the app UI, even without a command.
+    /// pair as a `moof://` URL query item to the app, print the card's id and exit before any scene
+    /// starts. Invoked through the `moof` symlink it never starts the app UI, even without a command.
     init() {
-        let commands = ["notify", "dismiss", "dismiss-all", "clear"]
+        let commands = ["notify", "dismiss"]
         let arguments = CommandLine.arguments.dropFirst()
         let isSymlinkInvocation = URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent == "moof"
         guard isSymlinkInvocation || arguments.first.map(commands.contains) == true else { return }
         guard let command = arguments.first else {
             print(
-                "moof — show a floating Moof notification card.\n\nUsage: moof notify --title <text> [options]\n       moof dismiss --id <string>\n       moof dismiss-all\n\nRun `moof --help` for all options."
+                "moof — show a floating Moof notification card.\n\nUsage: moof notify --title <text> [options]\n       moof dismiss --id <string>\n\nRun `moof --help` for all options."
             )
             exit(0)
         }
@@ -51,6 +51,10 @@ struct MoofApp: App {
             }
             items.append(URLQueryItem(name: String(argument.dropFirst(2)), value: value.addingPercentEncoding(withAllowedCharacters: allowed)))
         }
+        // The CLI picks the id when the caller does not, so it can print it.
+        if command == "notify", !items.contains(where: { $0.name.lowercased() == "id" }) {
+            items.append(URLQueryItem(name: "id", value: MoofNotification.newID()))
+        }
         var components = URLComponents()
         components.scheme = "moof"
         components.host = command
@@ -58,6 +62,18 @@ struct MoofApp: App {
         guard let url = components.url else {
             FileHandle.standardError.write(Data("moof: could not build a URL\n".utf8))
             exit(2)
+        }
+        // Parse here with the app's own parser, so bad input fails with its reason before Moof
+        // sees it, and the printed id is the one the card gets.
+        let id: String
+        do {
+            switch try MoofCommand(url: url) {
+            case .notify(let notification): id = notification.id
+            case .dismiss(let dismissed): id = dismissed
+            }
+        } catch {
+            FileHandle.standardError.write(Data("moof: \((error as? MoofCommand.Failure)?.message ?? error.localizedDescription)\n".utf8))
+            exit(1)
         }
         let open = Process()
         open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -69,7 +85,9 @@ struct MoofApp: App {
             exit(1)
         }
         open.waitUntilExit()
-        exit(open.terminationStatus)
+        guard open.terminationStatus == 0 else { exit(1) }
+        print(id)
+        exit(0)
     }
 
     var body: some Scene {
@@ -82,9 +100,19 @@ struct MoofApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Before any launching `moof://` URL is handled, so restored cards stack above new ones.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        MoofNotificationCenter.shared.restore()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MoofNotificationCenter.shared.saveNow()
+    }
+
+    /// URL-scheme calls are fire-and-forget: an invalid URL is ignored.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            guard let command = MoofCommand(url: url) else { continue }
+            guard let command = try? MoofCommand(url: url) else { continue }
             MoofNotificationCenter.shared.handle(command)
         }
     }
@@ -108,7 +136,8 @@ struct MenuBarView: View {
                     Button(style.title, systemImage: style.symbol) { showPreview(style) }
                 }
             }
-            Button("Dismiss All", systemImage: "xmark.circle") { center.handle(.dismissAll) }
+            // The user's own control; no URL or CLI command closes every sender's cards.
+            Button("Dismiss All", systemImage: "xmark.circle") { center.items.keys.forEach(center.close) }
                 .disabled(center.items.isEmpty)
             #if DEBUG
             Button("Preview All", systemImage: "rectangle.stack") {
@@ -159,11 +188,11 @@ struct MenuBarView: View {
                     } ?? [
                         URLQueryItem(name: "title", value: "moof installed"), URLQueryItem(name: "body", value: "/usr/local/bin/moof → \(executable)"), URLQueryItem(name: "style", value: "success"),
                     ]
-                guard let url = components.url, let command = MoofCommand(url: url) else {
-                    assertionFailure("Install result URL should parse.")
-                    return
+                do {
+                    center.handle(try MoofCommand(url: components.url!))
+                } catch {
+                    assertionFailure("Install result URL should parse: \(error)")
                 }
-                center.handle(command)
                 if error == nil { isCLIInstalled = true }
             }
             .badge(isCLIInstalled ? Text("✓") : nil)
@@ -174,17 +203,14 @@ struct MenuBarView: View {
                     isCLIInstalled
                         ? "To notify me on macOS, run the `moof` command:\n\(MoofApp.cliReference)"
                         : """
-                        To notify me on macOS, run `open -g "<url>"` with one of these Moof URLs (URL-encode values):
+                        To notify me on macOS, run `open -g "<url>"` with this Moof URL (URL-encode values):
                         moof://notify?title=<text>&body=<text>[&source=<text>]
                           &style=info|success|warning|error|critical
                           &theme=default|elden-ring|mario|hollow-knight
                           &background=<hex>      custom card color; text adapts to it
-                          &id=<string>           same id replaces the card on screen
                           &duration=<seconds>    0 keeps it until dismissed
-                          &sound=<NSSound name>  text over 4 lines ends with …
                           &action=<url>  &actionTitle=<text>
-                        moof://dismiss?id=<string>
-                        moof://dismiss-all
+                          text over 4 lines ends with …
                         """,
                     forType: .string
                 )
@@ -201,10 +227,10 @@ struct MenuBarView: View {
             string:
                 "moof://notify?title=Moof%20Test&body=This%20is%20a%20\(style.rawValue)%20alert.&style=\(style.rawValue)&source=Moof&action=https%3A%2F%2Fgithub.com%2FStillmake%2FMoof&actionTitle=GitHub"
         )
-        guard let url, let command = MoofCommand(url: url) else {
-            assertionFailure("Test URL should parse.")
-            return
+        do {
+            center.handle(try MoofCommand(url: url!))
+        } catch {
+            assertionFailure("Test URL should parse: \(error)")
         }
-        center.handle(command)
     }
 }
