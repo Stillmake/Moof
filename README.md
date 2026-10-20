@@ -29,3 +29,7 @@ Moof's themes are love letters to the message boxes of games we enjoy:
 - **Hollow Knight** (Team Cherry) — the dark dialog panel framed by its fleur ornaments.
 
 These themes reinterpret general visual styles. Moof contains no fonts, characters, or game files; the Hollow Knight fleur ornaments are vector traces modeled on the game's design. All names and trademarks belong to their respective owners, and Moof is not affiliated with or endorsed by them.
+
+## License
+
+Moof is released under the [MIT License](LICENSE).
