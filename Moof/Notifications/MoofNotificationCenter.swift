@@ -147,7 +147,7 @@ final class MoofNotificationCenter {
             } else {
                 panel.position(topOffset: topOffset, stackOffset: stackOffset, animated: animateExisting)
             }
-            screenOffsets[screenID, default: 0] = stackOffset + panel.windowSize.height + itemSpacing
+            screenOffsets[screenID, default: 0] = stackOffset + panel.cardSize.height + itemSpacing
         }
     }
 
@@ -187,24 +187,34 @@ final class MoofNotificationCenter {
     }
 }
 
+/// Liquid Glass drops its tint unless its window has active appearance, which a non-activating
+/// panel never gets; reporting it here keeps the tint on every card.
+private final class ActiveAppearancePanel: NSPanel {
+    @objc func _hasActiveAppearance() -> Bool { true }
+}
+
 @MainActor
 final class MoofNotificationPanel {
     var screen: NSScreen
-    var windowSize: CGSize
+    /// The card's own size; the window adds `shadowMargin` on every side.
+    var cardSize: CGSize
+    private var shadowMargin: CGFloat = 0
 
     private let panel: NSPanel
 
     init(item: MoofNotificationItem, screen: NSScreen) {
         self.screen = screen
-        self.windowSize = MoofNotificationLayout(notification: item.notification).size
-        self.panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: windowSize),
+        self.cardSize = MoofNotificationLayout(notification: item.notification).size
+        self.panel = ActiveAppearancePanel(
+            contentRect: NSRect(origin: .zero, size: cardSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         panel.backgroundColor = .clear
+        // Cards draw their own edges and shadows; the window shadow would add a system outline.
+        panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
@@ -215,10 +225,9 @@ final class MoofNotificationPanel {
         apply(item.notification)
     }
 
-    /// Game themes draw their own edges and shadows, which the rectangular window shadow would outline.
     func apply(_ notification: MoofNotification) {
-        windowSize = MoofNotificationLayout(notification: notification).size
-        panel.hasShadow = notification.theme == .standard
+        cardSize = MoofNotificationLayout(notification: notification).size
+        shadowMargin = notification.theme == .standard ? MoofNotificationLayout.glassShadowMargin : 0
     }
 
     func close() {
@@ -263,9 +272,9 @@ final class MoofNotificationPanel {
     private func frame(topOffset: CGFloat, stackOffset: CGFloat) -> NSRect {
         let visibleFrame = screen.visibleFrame
         let origin = NSPoint(
-            x: visibleFrame.midX - windowSize.width / 2,
-            y: visibleFrame.maxY - topOffset - stackOffset - windowSize.height
+            x: visibleFrame.midX - cardSize.width / 2,
+            y: visibleFrame.maxY - topOffset - stackOffset - cardSize.height
         )
-        return NSRect(origin: origin, size: windowSize)
+        return NSRect(origin: origin, size: cardSize).insetBy(dx: -shadowMargin, dy: -shadowMargin)
     }
 }

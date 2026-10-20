@@ -101,7 +101,7 @@ struct HollowKnightCard: View {
             .animation(.easeOut(duration: 0.15), value: isHovering)
         }
         .frame(width: size.width, height: size.height)
-        // Takes the tap before the outer card's action tap; the action stays on its hover button.
+        // The action stays on its hover button.
         .contentShape(.rect)
         .onTapGesture { close?() }
     }

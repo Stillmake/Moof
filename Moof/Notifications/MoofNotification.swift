@@ -137,12 +137,13 @@ struct MoofNotificationLayout {
     static let maxLines = 4
 
     static let panelWidth: CGFloat = 540
+    /// Transparent window margin around the default card, room for its glass shadow.
+    static let glassShadowMargin: CGFloat = 32
     static let cardPadding: CGFloat = 14
     static let cardSpacing: CGFloat = 10
-    static let headerHeight: CGFloat = 38
-    static let iconSize: CGFloat = 30
+    static let headerHeight: CGFloat = 24
     static let bottomBarHeight: CGFloat = 26
-    static let messageFont = NSFont.monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+    static let messageFont = NSFont.systemFont(ofSize: 13)
 
     static let eldenRingTitleFont = serif(size: 20)
     static let eldenRingMessageFont = serif(size: 13)
