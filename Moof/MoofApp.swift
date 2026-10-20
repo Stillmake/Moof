@@ -75,9 +75,13 @@ struct MoofApp: App {
             FileHandle.standardError.write(Data("moof: \((error as? MoofCommand.Failure)?.message ?? error.localizedDescription)\n".utf8))
             exit(1)
         }
+        // Open the URL with the app bundle this executable belongs to, so the card reaches this copy
+        // of Moof even when another one (a Debug build, the DMG) also handles `moof://`.
+        let bundle = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let open = Process()
         open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments = ["-g", url.absoluteString]
+        open.arguments = ["-g", "-a", bundle.path, url.absoluteString]
         do {
             try open.run()
         } catch {
@@ -178,9 +182,15 @@ struct MenuBarView: View {
                     assertionFailure("Executable path is missing or contains a quote.")
                     return
                 }
-                let script = "do shell script \"mkdir -p /usr/local/bin && ln -sf \" & quoted form of \"\(executable)\" & \" /usr/local/bin/moof\" with administrator privileges"
                 var error: NSDictionary?
-                NSAppleScript(source: script)?.executeAndReturnError(&error)
+                // Run from the mounted DMG or translocated by Gatekeeper, the path vanishes later and
+                // the link would break; ask for the copy in Applications instead.
+                if executable.hasPrefix("/Volumes/") || executable.contains("/AppTranslocation/") {
+                    error = [NSAppleScript.errorMessage: "Move Moof to the Applications folder and open it from there first."]
+                } else {
+                    let script = "do shell script \"mkdir -p /usr/local/bin && ln -sf \" & quoted form of \"\(executable)\" & \" /usr/local/bin/moof\" with administrator privileges"
+                    NSAppleScript(source: script)?.executeAndReturnError(&error)
+                }
                 var components = URLComponents(string: "moof://notify?source=Moof")!
                 components.queryItems! +=
                     error.map {
