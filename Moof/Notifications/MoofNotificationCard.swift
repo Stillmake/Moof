@@ -40,7 +40,7 @@ struct MoofNotificationCard: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: notification.style.symbol)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(accent)
@@ -52,10 +52,14 @@ struct MoofNotificationCard: View {
                 .lineLimit(1)
                 .help(notification.title)
                 .layoutPriority(1)
-            Text([notification.source, notification.createdAt.formatted(date: .omitted, time: .shortened)].compactMap { $0.map { "· \($0)" } }.joined(separator: " "))
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                ForEach([notification.source, notification.createdAt.formatted(date: .omitted, time: .shortened)].compactMap(\.self), id: \.self) { item in
+                    Circle().frame(width: 3, height: 3)
+                    Text(item).lineLimit(1)
+                }
+            }
+            .font(.headline)
+            .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
 
@@ -69,15 +73,15 @@ struct MoofNotificationCard: View {
     private var closeButton: some View {
         Button(action: { close?() }) {
             ZStack {
-                Circle().fill(.secondary.opacity(0.08))
-                Circle().stroke(.secondary.opacity(0.18), lineWidth: showsDismissIndicator ? 2 : 0)
+                Circle().fill(Color.nsLabelColor.opacity(0.13))
+                Circle().stroke(Color.nsLabelColor.opacity(0.13), lineWidth: showsDismissIndicator ? 2 : 0)
                 if showsDismissIndicator, let dismissState {
                     TimelineView(.periodic(from: .now, by: 0.1)) { context in
                         let progress = dismissState.progress(at: context.date)
                         Circle()
                             .trim(from: 0, to: progress)
                             .stroke(
-                                progress < 0.3 ? Color.red : progress < 0.5 ? .orange : .green,
+                                Color.nsLabelColor.opacity(0.6),
                                 style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
