@@ -2,7 +2,7 @@
 
 # Usage:
 # ./scripts/make-banner.sh
-# Builds the README banner video (build/banner.mov, uploaded to GitHub by hand) from the real app,
+# Builds the README banner video (build/banner.mp4, uploaded to GitHub by hand) from the real app,
 # deterministically:
 # 1. Builds Debug and launches it in banner mode (Moof/Debug/MoofBannerRecorder.swift), which
 #    shows one scene per theme over scripts/banner-background.jpg and captures one still of each
@@ -49,5 +49,5 @@ ffmpeg -loglevel error -y -framerate "1/$HOLD" -i "$SCENES/scene-%d.png" \
   -vf "fps=10,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p" \
   -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv \
   -c:v libx264 -preset slow -crf 18 -tune stillimage -x264-params colorprim=bt709:transfer=bt709:colormatrix=bt709 \
-  -movflags +faststart+write_colr build/banner.mov
-echo "build/banner.mov $(du -h build/banner.mov | cut -f1)"
+  -movflags +faststart+write_colr build/banner.mp4
+echo "build/banner.mp4 $(du -h build/banner.mp4 | cut -f1)"
