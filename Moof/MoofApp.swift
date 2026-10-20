@@ -6,7 +6,7 @@ struct MoofApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     static let cliReference = """
-        moof notify --title <text> [--body <text>] [--subtitle <text>] [--source <text>]
+        moof notify --title <text> --body <text> [--source <text>]
           --style info|success|warning|error|critical
           --theme default|elden-ring|mario|hollow-knight
           --background <hex>     custom card color; text adapts to it
@@ -172,7 +172,7 @@ struct MenuBarView: View {
                         ? "To notify me on macOS, run the `moof` command:\n\(MoofApp.cliReference)"
                         : """
                         To notify me on macOS, run `open -g "<url>"` with one of these Moof URLs (URL-encode values):
-                        moof://notify?title=<text>[&body=<text>][&subtitle=<text>][&source=<text>]
+                        moof://notify?title=<text>&body=<text>[&source=<text>]
                           &style=info|success|warning|error|critical
                           &theme=default|elden-ring|mario|hollow-knight
                           &background=<hex>      custom card color; text adapts to it

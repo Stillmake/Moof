@@ -58,8 +58,7 @@ struct MoofNotification: Identifiable {
 
     let id: String
     let title: String
-    let subtitle: String?
-    let message: String?
+    let body: String
     let source: String?
     let style: Style
     let theme: MoofTheme
@@ -71,10 +70,6 @@ struct MoofNotification: Identifiable {
     let action: URL?
     let actionTitle: String
     let createdAt = Date()
-
-    var keepsVisibleUntilDismissed: Bool {
-        style == .critical || duration == 0
-    }
 }
 
 enum MoofCommand {
@@ -98,6 +93,10 @@ enum MoofCommand {
 
         switch url.host?.lowercased() {
         case "notify":
+            guard let body = text("body") else {
+                assertionFailure("moof://notify requires a body.")
+                return nil
+            }
             let style = MoofNotification.Style(rawValue: text("style")?.lowercased() ?? MoofNotification.Style.info.rawValue)
             assert(style != nil, "Unknown moof style \(query["style"] ?? ""); using info.")
             let theme = MoofTheme(rawValue: text("theme")?.lowercased() ?? MoofPreferences.shared.theme.rawValue)
@@ -106,8 +105,7 @@ enum MoofCommand {
                 MoofNotification(
                     id: text("id") ?? UUID().uuidString,
                     title: text("title") ?? "Moof",
-                    subtitle: text("subtitle"),
-                    message: text("body") ?? text("message"),
+                    body: body,
                     source: text("source"),
                     style: style ?? .info,
                     theme: theme ?? MoofPreferences.shared.theme,
@@ -148,29 +146,27 @@ struct MoofNotificationLayout {
 
     static let eldenRingTitleFont = serif(size: 20)
     static let eldenRingMessageFont = serif(size: 13)
+    static let eldenRingSourceFont = serif(size: 11)
     static let marioFont = NSFont.systemFont(ofSize: 26, weight: .semibold)
     static let marioLineSpacing: CGFloat = 14
     static let hollowKnightFont = serif(size: 20)
     static let hollowKnightLineSpacing: CGFloat = 6
+    static let hollowKnightSourceFont = serif(size: 14)
 
     let size: CGSize
 
     init(notification: MoofNotification) {
-        let paragraph = [notification.title, notification.message].compactMap(\.self).joined(separator: " ")
+        let paragraph = notification.title + "\n" + notification.body
         switch notification.theme {
         case .standard:
-            // Message box: 6pt vertical and 8pt horizontal padding inside the card padding.
-            let message = notification.message.map {
-                Self.textHeight($0, font: Self.messageFont, width: Self.panelWidth - Self.cardPadding * 2 - 16) + 12 + Self.cardSpacing
-            }
-            size = CGSize(width: Self.panelWidth, height: Self.cardPadding * 2 + Self.headerHeight + Self.cardSpacing + (message ?? 0) + Self.bottomBarHeight)
+            // Body box: 6pt vertical and 8pt horizontal padding inside the card padding.
+            let body = Self.textHeight(notification.body, font: Self.messageFont, width: Self.panelWidth - Self.cardPadding * 2 - 16) + 12
+            size = CGSize(width: Self.panelWidth, height: Self.cardPadding * 2 + Self.headerHeight + Self.cardSpacing + body + Self.cardSpacing + Self.bottomBarHeight)
         case .eldenRing:
             // 120pt side margins, 36pt above and below the text, then the divider and the 46pt prompt row.
             let title = Self.textHeight(notification.title, font: Self.eldenRingTitleFont, width: 520, kern: 0.3, maxLines: 1)
-            let message = notification.message.map {
-                10 + Self.textHeight($0, font: Self.eldenRingMessageFont, width: 520, kern: 0.6, maxLines: Self.maxLines - 1)
-            }
-            size = CGSize(width: 760, height: 36 + title + (message ?? 0) + 36 + 1 + 46)
+            let body = Self.textHeight(notification.body, font: Self.eldenRingMessageFont, width: 520, kern: 0.6, maxLines: Self.maxLines - 1)
+            size = CGSize(width: 760, height: 36 + title + 10 + body + 36 + 1 + 46)
         case .mario:
             // 6pt shadow margins, the 34pt tab, 30pt above the text and 52pt below it for the ▼.
             let text = Self.textHeight(paragraph, font: Self.marioFont, width: 720 - 52 - 160, lineSpacing: Self.marioLineSpacing)

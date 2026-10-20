@@ -7,18 +7,18 @@ struct MoofNotificationView: View {
 
     var body: some View {
         let close = { center.close(item.id) }
-        let copy = { center.copyMessage(item.id) }
+        let copy = { center.copy(item.id) }
         let action = item.notification.action == nil ? nil : { center.performAction(item.id) }
         Group {
             switch item.notification.theme {
             case .standard:
                 MoofNotificationCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
             case .eldenRing:
-                EldenRingCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+                EldenRingCard(notification: item.notification, dismissState: item.dismissState, isHovering: item.isHovering, close: close, copy: copy, action: action)
             case .mario:
-                MarioCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+                MarioCard(notification: item.notification, dismissState: item.dismissState, isHovering: item.isHovering, close: close, copy: copy, action: action)
             case .hollowKnight:
-                HollowKnightCard(notification: item.notification, dismissState: item.dismissState, close: close, copy: copy, action: action)
+                HollowKnightCard(notification: item.notification, dismissState: item.dismissState, isHovering: item.isHovering, close: close, copy: copy, action: action)
             }
         }
         .contentShape(.rect)
@@ -41,18 +41,15 @@ struct MoofNotificationCard: View {
         let shape = RoundedRectangle(cornerRadius: 28)
         VStack(alignment: .leading, spacing: MoofNotificationLayout.cardSpacing) {
             header
-            if let message = notification.message {
-                Text(message)
-                    .font(Font(MoofNotificationLayout.messageFont))
-                    .lineLimit(MoofNotificationLayout.maxLines)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(.primary)
-                    .textSelection(.enabled)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 8)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .background(accent.opacity(notification.style.isAlert ? 0.13 : 0.06), in: .rect(cornerRadius: 8))
-            }
+            Text(notification.body)
+                .font(Font(MoofNotificationLayout.messageFont))
+                .lineLimit(MoofNotificationLayout.maxLines)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(.primary)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(accent.opacity(notification.style.isAlert ? 0.13 : 0.06), in: .rect(cornerRadius: 8))
             HStack(spacing: 8) {
                 if let action {
                     pillButton(notification.actionTitle, systemImage: "arrow.up.forward.app", action: action)
@@ -86,7 +83,7 @@ struct MoofNotificationCard: View {
                     .help(notification.title)
 
                 HStack(spacing: 8) {
-                    Text(notification.subtitle ?? notification.style.title)
+                    Text(notification.style.title)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(accent)
                         .lineLimit(1)
@@ -94,9 +91,6 @@ struct MoofNotificationCard: View {
                         metadataLabel(source, systemImage: "app.badge")
                     }
                     metadataLabel(notification.createdAt.formatted(date: .omitted, time: .shortened), systemImage: "clock")
-                    if notification.keepsVisibleUntilDismissed {
-                        metadataLabel("Pinned", systemImage: "pin.fill")
-                    }
                 }
             }
 
@@ -153,6 +147,7 @@ struct MoofNotificationCard: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(.secondary.opacity(0.08), in: Capsule())
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(action == nil)

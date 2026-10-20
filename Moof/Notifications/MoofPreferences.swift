@@ -42,7 +42,6 @@ final class MoofPreferences {
     }
 
     func dismissDelay(for notification: MoofNotification) -> TimeInterval? {
-        guard !notification.keepsVisibleUntilDismissed else { return nil }
         let delay = notification.duration ?? TimeInterval(notification.style.isAlert ? alertDismissDelay : standardDismissDelay)
         return delay == 0 ? nil : delay
     }

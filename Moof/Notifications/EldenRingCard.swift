@@ -2,10 +2,12 @@ import SwiftUI
 
 /// The in-game message band: a dark translucent strip rimmed by needle hairlines, centered serif
 /// text, a needle divider, and gamepad-style prompts. The divider doubles as the countdown,
-/// its lit span shrinking toward the center. Style colors and icons are ignored.
+/// its lit span shrinking toward the center. The source shows at the prompt row's leading edge on
+/// hover. Style colors and icons are ignored.
 struct EldenRingCard: View {
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
+    var isHovering = false
     var close: (() -> Void)?
     var copy: (() -> Void)?
     var action: (() -> Void)?
@@ -25,16 +27,13 @@ struct EldenRingCard: View {
                     .kerning(0.3)
                     .lineLimit(1)
                     .fixedSize(horizontal: false, vertical: true)
-                if let message = notification.message {
-                    Text(message)
-                        .font(Font(MoofNotificationLayout.eldenRingMessageFont))
-                        .kerning(0.6)
-                        .opacity(0.72)
-                        .lineLimit(MoofNotificationLayout.maxLines - 1)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.center)
-                        .textSelection(.enabled)
-                }
+                Text(notification.body)
+                    .font(Font(MoofNotificationLayout.eldenRingMessageFont))
+                    .kerning(0.6)
+                    .opacity(0.72)
+                    .lineLimit(MoofNotificationLayout.maxLines - 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 120)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -62,7 +61,22 @@ struct EldenRingCard: View {
                 prompt("X", "Copy", copy)
                 prompt("Y", "Close", close)
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 46)
+            .overlay(alignment: .leading) {
+                if let source = notification.source {
+                    Text(source.uppercased())
+                        .font(Font(MoofNotificationLayout.eldenRingSourceFont))
+                        .kerning(2)
+                        .lineLimit(1)
+                        .foregroundStyle(Self.gold)
+                        // Clear of the band's 4% edge fade and of the centered prompts.
+                        .frame(maxWidth: 180, alignment: .leading)
+                        .padding(.leading, 32)
+                        .opacity(isHovering ? 1 : 0)
+                        .animation(.easeOut(duration: 0.15), value: isHovering)
+                }
+            }
         }
         .foregroundStyle(ink)
         .shadow(color: .black.opacity(0.5), radius: 1, y: 0.5)

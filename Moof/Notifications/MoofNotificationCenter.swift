@@ -83,6 +83,9 @@ final class MoofNotificationCenter {
             item.dismissState = nil
             panels[notification.id]?.apply(notification)
             scheduleDismiss(notification.id)
+            // Cards stack by time, so the replaced card moves after the others.
+            order.removeAll { $0 == notification.id }
+            order.append(notification.id)
             layoutWindows(animatedNewID: nil)
             return
         }
@@ -111,10 +114,10 @@ final class MoofNotificationCenter {
         close(id)
     }
 
-    func copyMessage(_ id: String) {
+    func copy(_ id: String) {
         guard let notification = items[id]?.notification else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(notification.message ?? notification.title, forType: .string)
+        NSPasteboard.general.setString(notification.title + "\n" + notification.body, forType: .string)
     }
 
     func setHovering(_ id: String, _ hovering: Bool) {
