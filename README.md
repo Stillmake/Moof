@@ -4,7 +4,7 @@ A macOS menu bar app that shows floating notification cards, triggered from a UR
 
 ```sh
 moof notify --title "Build done" --body "All green" --style success
-open -g "moof://notify?title=Deploy&style=warning&duration=0"
+open -g "moof://notify?title=Deploy&body=Waiting%20for%20approval&style=warning&duration=0"
 ```
 
 Install the CLI from the menu bar (**Command Line Tool…**), or use **Copy Prompt** to give an AI agent the full reference.

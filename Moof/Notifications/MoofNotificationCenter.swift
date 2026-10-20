@@ -46,7 +46,9 @@ final class MoofNotificationCenter {
     @ObservationIgnored private var saveWorkItem: DispatchWorkItem?
     @ObservationIgnored private let preferences = MoofPreferences.shared
 
-    private let topOffset: CGFloat = 24
+    /// Distance from the top of the visible screen to the first card; the banner recorder centers
+    /// its scenes with it.
+    @ObservationIgnored var topOffset: CGFloat = 24
     private let entranceOffset: CGFloat = 28
     private let itemSpacing: CGFloat = 12
 

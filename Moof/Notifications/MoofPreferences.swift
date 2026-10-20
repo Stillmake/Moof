@@ -38,7 +38,7 @@ final class MoofPreferences {
         let defaults = UserDefaults.standard
         standardDismissDelay = defaults.object(forKey: Key.standardDismissDelay) as? Int ?? 5
         alertDismissDelay = defaults.object(forKey: Key.alertDismissDelay) as? Int ?? 30
-        theme = defaults.string(forKey: Key.theme).flatMap(MoofTheme.init(rawValue:)) ?? .standard
+        theme = defaults.string(forKey: Key.theme).flatMap(MoofTheme.init(rawValue:)) ?? .hollowKnight
     }
 
     func dismissDelay(for notification: MoofNotification) -> TimeInterval? {

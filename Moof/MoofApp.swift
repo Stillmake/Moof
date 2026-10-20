@@ -102,6 +102,9 @@ struct MoofApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Before any launching `moof://` URL is handled, so restored cards stack above new ones.
     func applicationWillFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if MoofBannerRecorder.startIfRequested() { return }
+        #endif
         MoofNotificationCenter.shared.restore()
     }
 
