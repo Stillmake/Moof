@@ -11,4 +11,4 @@
 
 // CFBundleVersion is not set here: the "Build Number" phase stamps the commit
 // count of HEAD into the built Info.plist.
-MARKETING_VERSION = 0.1.0
+MARKETING_VERSION = 0.2.0
