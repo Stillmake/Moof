@@ -106,7 +106,10 @@ struct MenuBarView: View {
             Menu("Preview", systemImage: "eye") {
                 ForEach(MoofNotification.Style.allCases, id: \.self) { style in
                     Button(style.title, systemImage: style.symbol) {
-                        let url = URL(string: "moof://notify?title=Moof%20Test&body=This%20is%20a%20\(style.rawValue)%20alert.&style=\(style.rawValue)&source=Moof")
+                        let url = URL(
+                            string:
+                                "moof://notify?title=Moof%20Test&body=This%20is%20a%20\(style.rawValue)%20alert.&style=\(style.rawValue)&source=Moof&action=https%3A%2F%2Fgithub.com%2FStillmake%2FMoof&actionTitle=GitHub"
+                        )
                         guard let url, let command = MoofCommand(url: url) else {
                             assertionFailure("Test URL should parse.")
                             return

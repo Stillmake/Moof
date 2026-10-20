@@ -3,8 +3,8 @@ import SwiftUI
 /// A Hollow Knight dialog: a dark, soft-edged panel with serif text, a fleur ornament straddling
 /// its top edge and a smaller one on its bottom edge. The bottom fleur is the countdown, its lit
 /// part shrinking toward the center. Clicking anywhere on the card closes it. On hover, serif Copy and
-/// action buttons appear inside the panel above it, and the source left of the top fleur. Style
-/// colors and icons are ignored.
+/// action buttons appear inside the panel above it, with the source at the row's leading edge.
+/// Style colors and icons are ignored.
 struct HollowKnightCard: View {
     let notification: MoofNotification
     var dismissState: MoofNotificationItem.DismissState?
@@ -40,21 +40,6 @@ struct HollowKnightCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 44)
                 .padding(.top, 64)
-
-            // Inside the panel's top margin, clear of the 320pt top fleur.
-            if let source = notification.source {
-                Text(source)
-                    .font(Font(MoofNotificationLayout.hollowKnightSourceFont))
-                    .lineLimit(1)
-                    .foregroundStyle(ink)
-                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
-                    .frame(maxWidth: 140, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 44)
-                    .padding(.top, 36)
-                    .opacity(isHovering ? 1 : 0)
-                    .animation(.easeOut(duration: 0.15), value: isHovering)
-            }
 
             // 4pt from the window edges so the ornament shadows are not clipped.
             Image("HollowKnightOrnamentTop")
@@ -93,16 +78,23 @@ struct HollowKnightCard: View {
             .frame(maxHeight: .infinity, alignment: .bottom)
 
             // Inside the panel, between the text (120pt from the bottom) and the bottom fleur
-            // (41pt), right-aligned with the text's 44pt inset.
-            HStack(spacing: 28) {
-                if let action {
-                    textButton(notification.actionTitle, action)
+            // (41pt), inset 44pt like the text: the source on the left, the buttons on the right.
+            HStack(alignment: .firstTextBaseline, spacing: 28) {
+                if let source = notification.source {
+                    Text(source)
+                        .font(Font(MoofNotificationLayout.hollowKnightSourceFont))
+                        .lineLimit(1)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
                 }
-                textButton("Copy", copy)
+                Spacer(minLength: 0)
+                if let action {
+                    HollowKnightTextButton(title: notification.actionTitle, action: action)
+                }
+                HollowKnightTextButton(title: "Copy", action: copy)
             }
             .foregroundStyle(ink)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, 44)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.horizontal, 44)
             .padding(.bottom, 52)
             .opacity(isHovering ? 1 : 0)
             .allowsHitTesting(isHovering)
@@ -113,15 +105,35 @@ struct HollowKnightCard: View {
         .contentShape(.rect)
         .onTapGesture { close?() }
     }
+}
 
-    private func textButton(_ title: String, _ action: (() -> Void)?) -> some View {
+/// Serif text in the card's ink that shows a rounded-rectangle outline while the pointer is on it.
+private struct HollowKnightTextButton: View {
+    let title: String
+    let action: (() -> Void)?
+
+    @State private var isHovering = false
+
+    var body: some View {
         Button(action: { action?() }) {
             Text(title)
                 .font(.system(size: 16, design: .serif))
                 .lineLimit(1)
                 .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(.foreground, lineWidth: 1)
+                        .opacity(isHovering ? 0.6 : 0)
+                }
                 .contentShape(.rect)
+                // The outline extends past the label without moving it off the row's 44pt inset.
+                .padding(.horizontal, -10)
+                .padding(.vertical, -4)
         }
         .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }

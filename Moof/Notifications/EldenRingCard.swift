@@ -39,11 +39,11 @@ struct EldenRingCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             ZStack {
-                Needle().fill(Self.needle.opacity(0.35))
+                EldenRingNeedle().fill(Self.needle.opacity(0.35))
                 if let dismissState, dismissState.isCountingDown {
                     TimelineView(.animation) { context in
                         GeometryReader { proxy in
-                            Needle()
+                            EldenRingNeedle()
                                 .fill(Self.needle.opacity(0.85))
                                 .frame(width: proxy.size.width * dismissState.progress(at: context.date))
                                 .frame(maxWidth: .infinity)
@@ -119,9 +119,9 @@ struct EldenRingCard: View {
                     .frame(height: 7)
                 }
                 VStack(spacing: 0) {
-                    Needle().fill(Self.needle.opacity(0.85)).frame(height: 1.5)
+                    EldenRingNeedle().fill(Self.needle.opacity(0.85)).frame(height: 1.5)
                     Spacer(minLength: 0)
-                    Needle().fill(Self.needle.opacity(0.75)).frame(height: 1.5)
+                    EldenRingNeedle().fill(Self.needle.opacity(0.75)).frame(height: 1.5)
                 }
             }
             .mask(
@@ -135,7 +135,7 @@ struct EldenRingCard: View {
         Button(action: { action?() }) {
             HStack(spacing: 3) {
                 // Text centers its line box and advance, not its ink; draw the outline centered by its bounds.
-                Glyph(character: key, size: 13)
+                EldenRingGlyph(character: key, size: 13)
                     .fill(Self.gold)
                     .frame(width: 22, height: 22)
                     .background(Circle().fill(.black.opacity(0.35)))
@@ -150,7 +150,7 @@ struct EldenRingCard: View {
 }
 
 /// A horizontal hairline that swells to full thickness quickly and tapers to points at both ends.
-private struct Needle: Shape {
+private struct EldenRingNeedle: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
             path.move(to: CGPoint(x: rect.minX, y: rect.midY))
@@ -163,7 +163,7 @@ private struct Needle: Shape {
 }
 
 /// A single semibold serif character's outline, its ink bounds centered in the rect.
-private struct Glyph: Shape {
+private struct EldenRingGlyph: Shape {
     let character: String
     let size: CGFloat
 
