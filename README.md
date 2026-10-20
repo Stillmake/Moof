@@ -1,6 +1,6 @@
 # Moof
 
-https://github.com/user-attachments/assets/af1c7bba-3857-4167-8a54-51581db406d2
+![Moof notification cards in the Hollow Knight, Elden Ring, Mario and Default themes](assets/banner.avif)
 
 A macOS menu bar app that shows floating notification cards, triggered from a URL scheme or the `moof` command line tool.
 
