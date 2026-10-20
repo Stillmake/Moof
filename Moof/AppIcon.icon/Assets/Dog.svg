@@ -1,0 +1,11 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(690 694) scale(0.608) translate(-512 -528)" fill="black">
+<ellipse cx="292" cy="455" rx="92" ry="170" transform="rotate(24 292 455)"/>
+<ellipse cx="732" cy="455" rx="92" ry="170" transform="rotate(-24 732 455)"/>
+<path fill-rule="evenodd" d="M262 560a250 225 0 1 0 500 0a250 225 0 1 0-500 0Z
+M420 480a36 40 0 1 1 0 80a36 40 0 1 1 0-80Zm10 14a12 12 0 1 0 0 24a12 12 0 1 0 0-24Z
+M604 480a36 40 0 1 1 0 80a36 40 0 1 1 0-80Zm10 14a12 12 0 1 0 0 24a12 12 0 1 0 0-24Z
+M512 642C490 642 466 630 466 612C466 596 488 588 512 588C536 588 558 596 558 612C558 630 534 642 512 642Z
+M458 676Q512 740 566 676Q512 708 458 676Z"/>
+</g>
+</svg>
