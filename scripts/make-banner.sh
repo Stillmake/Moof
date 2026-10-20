@@ -2,13 +2,16 @@
 
 # Usage:
 # ./scripts/make-banner.sh
-# Builds the README banner (assets/banner.avif) from the real app, deterministically:
+# Builds the README banner (assets/banner.avif) and a video of it for social media
+# (build/banner.mov) from the real app, deterministically:
 # 1. Builds Debug and launches it in banner mode (Moof/Debug/MoofBannerRecorder.swift), which
 #    shows one scene per theme over scripts/banner-background.jpg and captures one still of each
 #    once its cards are at rest: build/banner-scenes/scene-<n>.png.
 # 2. Encodes the stills as an animated AVIF with ffmpeg: each scene shown for HOLD seconds, looping,
 #    at the capture's full 2720 × 1044px. AV1 at CRF 18 with full 4:4:4 color, BT.709-tagged, keeps
 #    text and glass edges clean in ~100 KB; like a GIF it autoplays in `![](…)`.
+# 3. Encodes the same stills as an H.264 MOV for social media: 30 fps, 4:2:0, BT.709-tagged, with
+#    the index up front for streaming. Platforms re-encode uploads, so it favors compatibility.
 #
 # Requirements: Xcode, ffmpeg (brew install ffmpeg). Step 1 draws on screen for a few seconds under
 # the menu bar. Saved cards are backed up and restored around it.
@@ -50,3 +53,9 @@ ffmpeg -loglevel error -y -framerate "1/$HOLD" -i "$SCENES/scene-%d.png" \
   -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv \
   -c:v libaom-av1 -crf 18 -cpu-used 4 -loop 0 assets/banner.avif
 echo "assets/banner.avif $(du -h assets/banner.avif | cut -f1)"
+ffmpeg -loglevel error -y -framerate "1/$HOLD" -i "$SCENES/scene-%d.png" \
+  -vf "fps=30,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p" \
+  -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv \
+  -c:v libx264 -preset slow -crf 18 -tune stillimage -x264-params colorprim=bt709:transfer=bt709:colormatrix=bt709 \
+  -movflags +faststart+write_colr build/banner.mov
+echo "build/banner.mov $(du -h build/banner.mov | cut -f1)"
