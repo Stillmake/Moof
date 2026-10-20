@@ -110,3 +110,6 @@ xcuserdata/
 # End of https://www.toptal.com/developers/gitignore/api/swift
 
 .DS_Store
+# Release artifacts
+Archives/*.app
+*.dmg

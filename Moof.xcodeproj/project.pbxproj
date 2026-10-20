@@ -10,9 +10,22 @@
 		82D385A85C7E86A2F1EB58CC /* Moof.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Moof.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5B1D0C2E7A9F4E3B8C6D1A20 /* Exceptions for "Moof" folder in "Moof" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/Base.xcconfig,
+			);
+			target = 3CA47E94094EBFF596D2FB0F /* Moof */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D34F236174AFC8591012E4E7 /* Moof */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5B1D0C2E7A9F4E3B8C6D1A20 /* Exceptions for "Moof" folder in "Moof" target */,
+			);
 			path = Moof;
 			sourceTree = "<group>";
 		};
@@ -44,6 +57,7 @@
 			buildPhases = (
 				3EDCDBED6A7E5E7BB81E1237 /* Sources */,
 				9A84753B8E03B9CE8D4AE502 /* Resources */,
+				6E2F8A41C3B74D9E9A105B37 /* Build Number */,
 			);
 			buildRules = (
 			);
@@ -103,6 +117,29 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		6E2F8A41C3B74D9E9A105B37 /* Build Number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Build Number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "plutil -replace CFBundleVersion -string \"$(git rev-list --count HEAD)\" \"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		3EDCDBED6A7E5E7BB81E1237 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -116,12 +153,13 @@
 /* Begin XCBuildConfiguration section */
 		8EC8BC2564129AA617B6506D /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = D34F236174AFC8591012E4E7 /* Moof */;
+			baseConfigurationReferenceRelativePath = Resources/Base.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Info.plist;
@@ -131,7 +169,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stillmake.Moof;
 				SDKROOT = macosx;
 			};
@@ -266,12 +303,13 @@
 		};
 		C4FCC8805F06AA43F7EADE1A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = D34F236174AFC8591012E4E7 /* Moof */;
+			baseConfigurationReferenceRelativePath = Resources/Base.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Info.plist;
@@ -281,7 +319,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stillmake.Moof;
 				SDKROOT = macosx;
 			};
