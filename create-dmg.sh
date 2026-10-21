@@ -11,7 +11,9 @@
 # is the commit count of HEAD, stamped by the target's "Build Number" phase.
 # Notarization always uses the "sm" asc credential profile.
 # Archives the app signed directly with your Developer ID certificate,
-# notarizes, and creates the DMG. No re-sign/export step needed.
+# notarizes, and creates the DMG. No re-sign/export step needed. The DMG is
+# always the unsandboxed direct build (MOOF_APP_STORE=NO), whatever
+# Base.xcconfig says.
 #
 # ONE-TIME SETUP — create the Developer ID certificate in Xcode (done once):
 #   1. You should have added your Apple account: Xcode → Settings → Accounts
@@ -265,7 +267,11 @@ asc xcode archive \
   --xcodebuild-flag=generic/platform=macOS \
   --xcodebuild-flag="CODE_SIGN_STYLE=Manual" \
   --xcodebuild-flag="DEVELOPMENT_TEAM=$SIGNING_TEAM" \
-  --xcodebuild-flag="CODE_SIGN_IDENTITY=$SIGNING_IDENTITY"
+  --xcodebuild-flag="CODE_SIGN_IDENTITY=$SIGNING_IDENTITY" \
+  --xcodebuild-flag="MOOF_APP_STORE=NO"
+# The DMG ships the direct build: unsandboxed, with the privileged CLI install.
+codesign -d --entitlements - --xml "$ARCHIVE_PATH/Products/Applications/$PRODUCT_BUNDLE" 2>/dev/null \
+  | grep -q 'com.apple.security.app-sandbox' && die "$PRODUCT_BUNDLE is sandboxed; the DMG needs MOOF_APP_STORE=NO."
 progress 1 45
 
 # 2. Copy the signed .app from the archive into Archives/

@@ -181,6 +181,21 @@ struct MenuBarView: View {
                     assertionFailure("Executable path is missing or contains a quote.")
                     return
                 }
+                #if APP_STORE
+                // App Review forbids privilege escalation and writes outside the container, so the
+                // user runs the link command themselves.
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("sudo mkdir -p /usr/local/bin && sudo ln -sf '\(executable)' /usr/local/bin/moof", forType: .string)
+                do {
+                    center.handle(
+                        try MoofCommand(
+                            url: URL(string: "moof://notify?source=Moof&title=Command%20copied&body=Paste%20it%20in%20Terminal%20to%20install%20moof.&style=info")!
+                        )
+                    )
+                } catch {
+                    assertionFailure("Install prompt URL should parse: \(error)")
+                }
+                #else
                 var error: NSDictionary?
                 // Run from the mounted DMG or translocated by Gatekeeper, the path vanishes later and
                 // the link would break; ask for the copy in Applications instead.
@@ -206,6 +221,7 @@ struct MenuBarView: View {
                     assertionFailure("Install result URL should parse: \(error)")
                 }
                 if error == nil { isCLIInstalled = true }
+                #endif
             }
             .badge(isCLIInstalled ? Text("✓") : nil)
             Button("Copy Prompt", systemImage: "doc.on.clipboard") {
