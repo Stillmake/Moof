@@ -78,12 +78,15 @@ struct MoofApp: App {
         // Open the URL with the app bundle this executable belongs to, so the card reaches this copy
         // of Moof even when another one (a Debug build, the DMG) also handles `moof://`. `argv[0]` is
         // unusable here: a shell that finds `moof` on PATH passes the bare name. `Bundle.main` is too:
-        // launched through the /usr/local/bin/moof symlink it resolves to /usr/local/bin, so climb from
-        // the symlink-resolved executable (Moof.app/Contents/MacOS/Moof) to the bundle instead.
-        guard let executableURL = Bundle.main.executableURL?.resolvingSymlinksInPath() else {
-            assertionFailure("Moof has no executable URL")
+        // launched through the /usr/local/bin/moof symlink it is /usr/local/bin, with no executable. The
+        // kernel's path of this process is the resolved Moof.app/Contents/MacOS/Moof; climb to the bundle.
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        guard proc_pidpath(getpid(), &path, UInt32(path.count)) > 0 else {
+            assertionFailure("proc_pidpath failed: \(errno)")
+            FileHandle.standardError.write(Data("moof: cannot locate Moof.app\n".utf8))
             exit(1)
         }
+        let executableURL = URL(fileURLWithPath: String(cString: path))
         let opener = Process()
         opener.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         opener.arguments = [
