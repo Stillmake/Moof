@@ -13,8 +13,8 @@
 // count of HEAD into the built Info.plist.
 MARKETING_VERSION = 1.0.1
 
-// YES builds for the Mac App Store: sandboxed, and the Swift condition APP_STORE swaps
-// the privileged CLI install for a command the user runs.
+// YES builds for the Mac App Store: sandboxed, and the Swift condition APP_STORE drops
+// the CLI, leaving the moof:// URL scheme.
 MOOF_APP_STORE = NO
 MOOF_APP_STORE_CONDITION_YES = APP_STORE
 SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(MOOF_APP_STORE_CONDITION_$(MOOF_APP_STORE))

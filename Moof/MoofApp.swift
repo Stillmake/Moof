@@ -21,7 +21,12 @@ struct MoofApp: App {
     /// Run as the `moof` CLI (`moof notify --title Hi --duration 0`): forward each `--key value`
     /// pair as a `moof://` URL query item to the app, print the card's id and exit before any scene
     /// starts. Invoked through the `moof` symlink it never starts the app UI, even without a command.
+    /// The App Store build has no CLI: run sandboxed from Terminal, this process registers as Moof.app
+    /// and LaunchServices routes the `moof://` URL back to it, so senders use the URL scheme instead.
     init() {
+        #if APP_STORE
+        return
+        #endif
         let commands = ["notify", "dismiss"]
         let arguments = CommandLine.arguments.dropFirst()
         let isSymlinkInvocation = URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent == "moof"
@@ -145,7 +150,11 @@ struct MenuBarView: View {
     @State private var isCLIInstalled = Self.cliLinksThisBuild
 
     private static var cliLinksThisBuild: Bool {
+        #if APP_STORE
+        false
+        #else
         (try? FileManager.default.destinationOfSymbolicLink(atPath: "/usr/local/bin/moof")) == Bundle.main.executablePath
+        #endif
     }
     @State private var opensAtLogin = SMAppService.mainApp.status == .enabled
     private let center = MoofNotificationCenter.shared
@@ -191,27 +200,13 @@ struct MenuBarView: View {
                 opensAtLogin = SMAppService.mainApp.status == .enabled
             }
             .badge(opensAtLogin ? Text("✓") : nil)
+            #if !APP_STORE
             // Links /usr/local/bin/moof to this build's executable, which `MoofApp.init()` runs as the CLI.
             Button("Command Line Tool…", systemImage: "terminal") {
                 guard let executable = Bundle.main.executablePath, !executable.contains("\"") else {
                     assertionFailure("Executable path is missing or contains a quote.")
                     return
                 }
-                #if APP_STORE
-                // App Review forbids privilege escalation and writes outside the container, so the
-                // user runs the link command themselves.
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("sudo mkdir -p /usr/local/bin && sudo ln -sf '\(executable)' /usr/local/bin/moof", forType: .string)
-                do {
-                    center.handle(
-                        try MoofCommand(
-                            url: URL(string: "moof://notify?source=Moof&title=Command%20copied&body=Paste%20it%20in%20Terminal%20to%20install%20moof.&style=info")!
-                        )
-                    )
-                } catch {
-                    assertionFailure("Install prompt URL should parse: \(error)")
-                }
-                #else
                 var error: NSDictionary?
                 // Run from the mounted DMG or translocated by Gatekeeper, the path vanishes later and
                 // the link would break; ask for the copy in Applications instead.
@@ -237,9 +232,9 @@ struct MenuBarView: View {
                     assertionFailure("Install result URL should parse: \(error)")
                 }
                 if error == nil { isCLIInstalled = true }
-                #endif
             }
             .badge(isCLIInstalled ? Text("✓") : nil)
+            #endif
             Button("Copy Prompt", systemImage: "doc.on.clipboard") {
                 isCLIInstalled = Self.cliLinksThisBuild
                 NSPasteboard.general.clearContents()
