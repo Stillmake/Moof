@@ -86,22 +86,25 @@ struct MoofApp: App {
             FileHandle.standardError.write(Data("moof: cannot locate Moof.app\n".utf8))
             exit(1)
         }
-        let executableURL = URL(fileURLWithPath: String(cString: path))
-        let opener = Process()
-        opener.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        opener.arguments = [
-            "-g", "-a",
-            executableURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path,
-            url.absoluteString,
-        ]
-        do {
-            try opener.run()
-        } catch {
-            FileHandle.standardError.write(Data("moof: \(error.localizedDescription)\n".utf8))
+        // LaunchServices directly, not /usr/bin/open: the sandboxed App Store build's child `open -a`
+        // is refused with -10820. The completion runs on a background queue, so blocking here is safe.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        let opened = DispatchSemaphore(value: 0)
+        var failure: Error?
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: URL(fileURLWithPath: String(cString: path)).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent(),
+            configuration: configuration
+        ) { _, error in
+            failure = error
+            opened.signal()
+        }
+        opened.wait()
+        if let failure {
+            FileHandle.standardError.write(Data("moof: \(failure.localizedDescription)\n".utf8))
             exit(1)
         }
-        opener.waitUntilExit()
-        guard opener.terminationStatus == 0 else { exit(1) }
         print(id)
         exit(0)
     }
