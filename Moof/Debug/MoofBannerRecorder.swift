@@ -115,7 +115,7 @@ enum MoofBannerRecorder {
             let stackHeight = notifications.map { MoofNotificationLayout(notification: $0).size.height }.reduce(0, +) + CGFloat(notifications.count - 1) * 12
             let stackTop = scene.headline == nil ? 0 : size.height * 0.34
             center.topOffset = (screen.visibleFrame.maxY - frame.maxY) + stackTop + (size.height - stackTop - stackHeight) / 2
-            notifications.forEach(center.show)
+            notifications.forEach { center.show($0) }
             if notifications.first?.theme != .standard {
                 notifications.forEach { center.setHovering($0.id, true) }
             }

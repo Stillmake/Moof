@@ -147,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct MenuBarView: View {
     @Bindable private var preferences = MoofPreferences.shared
+    @Bindable private var weChat = MoofWeChat.shared
     @State private var isCLIInstalled = Self.cliLinksThisBuild
 
     private static var cliLinksThisBuild: Bool {
@@ -190,6 +191,19 @@ struct MenuBarView: View {
             Picker("Warning / Error Dismiss", systemImage: "exclamationmark.triangle", selection: $preferences.alertDismissDelay) {
                 ForEach(dismissDelays, id: \.self) { Text($0 == 0 ? "Never" : "\($0)s").tag($0) }
             }
+            Divider()
+            Button(
+                weChat.isConnected ? "WeChat Account…" : weChat.isPaired ? "Finish WeChat Setup…" : "Connect WeChat…",
+                systemImage: weChat.isConnected ? "bubble.left.and.bubble.right" : weChat.isPaired ? "exclamationmark.triangle" : "qrcode"
+            ) {
+                MoofWeChatWindowController.shared.present()
+            }
+            .badge(weChat.problem == nil && !(weChat.isPaired && !weChat.isConnected) ? nil : Text("!"))
+            Button("Also Send to WeChat", systemImage: "paperplane") {
+                weChat.mirrorNotifications.toggle()
+            }
+            .badge(weChat.mirrorNotifications ? Text("✓") : nil)
+            .disabled(!weChat.isConnected)
             Divider()
             Button("Open at Login", systemImage: "power.circle") {
                 do {
@@ -267,7 +281,7 @@ struct MenuBarView: View {
                 "moof://notify?title=Moof%20Test&body=This%20is%20a%20\(style.rawValue)%20alert.&style=\(style.rawValue)&source=Moof&action=https%3A%2F%2Fgithub.com%2FStillmake%2FMoof&actionTitle=GitHub"
         )
         do {
-            center.handle(try MoofCommand(url: url!))
+            center.handle(try MoofCommand(url: url!), sendsToWeChat: false)
         } catch {
             assertionFailure("Test URL should parse: \(error)")
         }
