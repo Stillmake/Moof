@@ -1,0 +1,310 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_PATHS=("$ROOT_DIR"/*.xcodeproj(N))
+# The scheme is the one name only the author can pick; everything else about the
+# product — its name, its build directory, its bundle id — is a build output that
+# varies per configuration, so it is read back from the build settings instead.
+# A scheme given as the first argument or via SCHEME wins; then the scheme named
+# after the project; otherwise the project's schemes are listed and one is picked.
+CONFIGURATION="Release"
+APP_ONLY=false
+SCHEME_ARGUMENT=""
+TEMP_ROOT="${TMPDIR:-/tmp}"
+# This machine is Apple silicon, so never build the x86_64 slice. The dSYM and
+# the index store are both pure overhead for a local install: nothing here
+# symbolicates a crash report, and Xcode indexes on its own.
+BUILD_SETTINGS=(
+  ARCHS=arm64
+  ONLY_ACTIVE_ARCH=NO
+  DEBUG_INFORMATION_FORMAT=dwarf
+  COMPILER_INDEX_STORE_ENABLE=NO
+  CURRENT_PROJECT_VERSION=9999
+)
+PROJECT_PATH=""
+SCHEME="${SCHEME:-}"
+APP_NAME=""
+BUNDLE_ID=""
+BUILT_APP_PATH=""
+INSTALL_PATH=""
+AGENT_PLIST=""
+BUILD_LOG_PATH=""
+FILTERED_LOG_PATTERN='(^warning:| warning:|^error:| error:|:[0-9]+:[0-9]+: (warning|error):)'
+STEP_COLOR=""
+SUCCESS_COLOR=""
+ERROR_COLOR=""
+RESET_COLOR=""
+
+if [[ -t 1 || -t 2 ]]; then
+  STEP_COLOR=$'\033[1;34m'
+  SUCCESS_COLOR=$'\033[1;32m'
+  ERROR_COLOR=$'\033[1;31m'
+  RESET_COLOR=$'\033[0m'
+fi
+
+log_step() {
+  printf "%s==>%s %s\n" "$STEP_COLOR" "$RESET_COLOR" "$1"
+}
+
+log_success() {
+  printf "%s%s%s\n" "$SUCCESS_COLOR" "$1" "$RESET_COLOR"
+}
+
+log_error() {
+  printf "%sError:%s %s\n" "$ERROR_COLOR" "$RESET_COLOR" "$1" >&2
+}
+
+assert_path_exists() {
+  local path="$1"
+  local message="$2"
+
+  if [[ ! -e "$path" ]]; then
+    log_error "$message"
+    exit 1
+  fi
+}
+
+cleanup() {
+  if [[ -n "$BUILD_LOG_PATH" && -f "$BUILD_LOG_PATH" ]]; then
+    rm -f "$BUILD_LOG_PATH"
+  fi
+}
+
+print_warning_and_error_output() {
+  local log_path="$1"
+
+  grep -E "$FILTERED_LOG_PATTERN" "$log_path" || true
+}
+
+# Resolves SCHEME: the first argument wins, then the SCHEME env var, then the
+# scheme named after the project — package and helper targets add schemes of
+# their own, so the list alone rarely has one entry. Otherwise the schemes are
+# numbered and the user picks one.
+resolve_scheme() {
+  SCHEME="${1:-${SCHEME:-}}"
+  if [[ -n "$SCHEME" ]]; then
+    return 0
+  fi
+
+  local -a schemes=("${(@f)$(xcodebuild -project "$PROJECT_PATH" -list -json 2>/dev/null \
+    | jq -r '.project.schemes[]' || true)}")
+  schemes=(${schemes:#})
+  local project_name="${PROJECT_PATH:t:r}"
+  local i choice
+  if [[ "${#schemes[@]}" -eq 0 ]]; then
+    log_error "No schemes found in $PROJECT_PATH."
+    exit 1
+  fi
+  if (( ${schemes[(Ie)$project_name]} )); then
+    SCHEME="$project_name"
+    log_step "Scheme: $SCHEME"
+    return 0
+  fi
+  if [[ "${#schemes[@]}" -eq 1 ]]; then
+    SCHEME="${schemes[1]}"
+    log_step "Scheme: $SCHEME"
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    log_error "Several schemes available; pass one as the first argument or set SCHEME."
+    exit 1
+  fi
+
+  printf "%sSelect a scheme (1-%s):%s\n" "$STEP_COLOR" "${#schemes[@]}" "$RESET_COLOR"
+  for i in {1..${#schemes[@]}}; do
+    printf '  %2d) %s\n' "$i" "${schemes[i]}"
+  done
+  if ! read -r choice; then
+    log_error "No selection made."
+    exit 1
+  fi
+  if [[ "$choice" != <-> || "$choice" -lt 1 || "$choice" -gt "${#schemes[@]}" ]]; then
+    log_error "Invalid choice '$choice'."
+    exit 1
+  fi
+  SCHEME="${schemes[choice]}"
+}
+
+# Reads the product name, output directory and bundle id straight from the build
+# system, so a rename needs no edit here. Of the scheme's application targets the
+# one named after the scheme wins, so an embedded helper app is never installed in
+# its place. The flags match the build below — otherwise BUILT_PRODUCTS_DIR would
+# not describe where the build actually lands.
+resolve_product() {
+  local settings
+
+  settings="$(xcodebuild build \
+    -project "$PROJECT_PATH" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -destination "generic/platform=macOS" \
+    "${BUILD_SETTINGS[@]}" \
+    -showBuildSettings -json 2>/dev/null \
+    | jq -r --arg scheme "$SCHEME" '
+        [.[] | .buildSettings
+             | select(.PRODUCT_TYPE == "com.apple.product-type.application")]
+        | (map(select(.TARGET_NAME == $scheme)) + .)[0]
+        | "\(.FULL_PRODUCT_NAME)\n\(.BUILT_PRODUCTS_DIR)\n\(.PRODUCT_BUNDLE_IDENTIFIER)"' || true)"
+
+  local -a fields=("${(@f)settings}")
+  if [[ "${#fields[@]}" -ne 3 || "${fields[1]}" == null || "${fields[2]}" == null ]]; then
+    log_error "No application target in scheme $SCHEME ($CONFIGURATION)."
+    exit 1
+  fi
+
+  APP_NAME="${fields[1]%.app}"
+  BUILT_APP_PATH="${fields[2]}/${fields[1]}"
+  INSTALL_PATH="/Applications/${fields[1]}"
+  BUNDLE_ID="${fields[3]}"
+  # An app that registers itself as a login agent under its bundle id would be
+  # relaunched by launchd the moment it is quit.
+  if [[ "$BUNDLE_ID" != null && -f "$HOME/Library/LaunchAgents/$BUNDLE_ID.plist" ]]; then
+    AGENT_PLIST="$HOME/Library/LaunchAgents/$BUNDLE_ID.plist"
+  fi
+}
+
+# A plain build rather than an archive: it reuses DerivedData, so a repeat run
+# after a small edit is incremental instead of a full rebuild from scratch.
+run_build() {
+  BUILD_LOG_PATH="$TEMP_ROOT/${APP_NAME}.build.log"
+
+  if ! xcodebuild build \
+    -project "$PROJECT_PATH" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -destination "generic/platform=macOS" \
+    "${BUILD_SETTINGS[@]}" \
+    -allowProvisioningUpdates \
+    -quiet >"$BUILD_LOG_PATH" 2>&1; then
+    print_warning_and_error_output "$BUILD_LOG_PATH"
+    log_error "xcodebuild build failed."
+    echo "Full build log saved at $BUILD_LOG_PATH" >&2
+    BUILD_LOG_PATH=""
+    exit 1
+  fi
+
+  print_warning_and_error_output "$BUILD_LOG_PATH"
+}
+
+trap cleanup EXIT
+
+copy_with_possible_sudo() {
+  local source_path="$1"
+  local destination_path="$2"
+
+  if ditto "$source_path" "$destination_path" 2>/dev/null; then
+    return 0
+  fi
+
+  log_step "Requesting administrator permission to write to $destination_path"
+  sudo ditto "$source_path" "$destination_path"
+}
+
+remove_with_possible_sudo() {
+  local target_path="$1"
+
+  if [[ ! -e "$target_path" ]]; then
+    return 0
+  fi
+
+  if rm -rf "$target_path" 2>/dev/null; then
+    return 0
+  fi
+
+  log_step "Requesting administrator permission to remove $target_path"
+  sudo rm -rf "$target_path"
+}
+
+if [[ "${#PROJECT_PATHS[@]}" -ne 1 ]]; then
+  log_error "Expected exactly one .xcodeproj in $ROOT_DIR, found ${#PROJECT_PATHS[@]}."
+  exit 1
+fi
+PROJECT_PATH="${PROJECT_PATHS[1]}"
+for argument in "$@"; do
+  case "$argument" in
+    --app-only) APP_ONLY=true ;;
+    -*) log_error "Unknown option: $argument"; exit 1 ;;
+    *)
+      if [[ -n "$SCHEME_ARGUMENT" ]]; then
+        log_error "Only one scheme may be specified."
+        exit 1
+      fi
+      SCHEME_ARGUMENT="$argument"
+      ;;
+  esac
+done
+log_step "Resolving scheme and build settings"
+resolve_scheme "$SCHEME_ARGUMENT"
+
+assert_path_exists "$TEMP_ROOT" "Expected temporary directory at $TEMP_ROOT"
+
+resolve_product
+
+log_step "Building $APP_NAME ($SCHEME, arm64, $CONFIGURATION)"
+run_build
+
+assert_path_exists "$BUILT_APP_PATH" "Build did not produce $BUILT_APP_PATH"
+log_step "Build completed: $BUILT_APP_PATH"
+
+if [[ "$APP_ONLY" == true ]]; then
+  open -R "$BUILT_APP_PATH"
+  open /Applications
+  log_success "Drag $BUILT_APP_PATH into Applications to install it."
+  exit 0
+fi
+
+# The running copy keeps working through the build and is only stopped once there
+# is a build to replace it with. The quit event is answered only once the app has
+# decided, so it waits out whatever the app asks first (unsaved edits, running
+# jobs); a quit the user or the app cancels stops the install here rather than
+# being overridden. An app that agreed to quit gets 15 s for its own shutdown — it
+# may hold child processes or system state (a proxy core, system proxy settings)
+# that only that shutdown releases — and SIGKILL covers one that hangs in it.
+if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+  log_step "Quitting running copy of $APP_NAME"
+  quit_error="$(osascript -e "with timeout of 3600 seconds
+    tell application \"$APP_NAME\" to quit
+  end timeout" 2>&1 >/dev/null || true)"
+  if [[ "$quit_error" == *"(-128)"* ]]; then
+    log_error "Quitting $APP_NAME was cancelled; $INSTALL_PATH was left in place."
+    exit 1
+  fi
+
+  for _ in {1..30}; do
+    pgrep -x "$APP_NAME" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+
+  if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+    log_step "Killing $APP_NAME"
+    pkill -9 -x "$APP_NAME" || true
+    for _ in {1..10}; do
+      pgrep -x "$APP_NAME" >/dev/null 2>&1 || break
+      sleep 0.2
+    done
+  fi
+fi
+
+if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+  log_error "$APP_NAME is still running. Please close it and run install_to_local again."
+  exit 1
+fi
+
+# Only after the quit: booting out a job SIGTERMs the process it launched, which
+# would skip the app's own shutdown. Leave it unloaded to avoid relaunching the app.
+if [[ -n "$AGENT_PLIST" ]]; then
+  log_step "Stopping login agent for $APP_NAME"
+  launchctl bootout "gui/$(id -u)/$BUNDLE_ID" 2>/dev/null || true
+fi
+
+log_step "Installing $APP_NAME to /Applications"
+if [[ -e "$INSTALL_PATH" ]]; then
+  log_step "Removing previous installation"
+fi
+remove_with_possible_sudo "$INSTALL_PATH"
+log_step "Copying app to $INSTALL_PATH"
+copy_with_possible_sudo "$BUILT_APP_PATH" "$INSTALL_PATH"
+
+log_success "Installed $INSTALL_PATH"

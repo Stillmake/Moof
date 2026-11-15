@@ -38,7 +38,7 @@ Choose **Connect WeChat…** in the menu bar and scan the QR code with WeChat. N
 
 The integration uses the same iLink bot login and message endpoints as Tencent's MIT-licensed OpenClaw Weixin channel. The stored tokens leave the local credential file only in authenticated requests to WeChat.
 
-Moof includes a conversation token when WeChat previously supplied one. If WeChat rejects that token, Moof retries the same notification without it and continues delivering using the stored bot credential. If WeChat invalidates the bot credential itself, the QR connection must be verified again.
+Moof includes a conversation token when WeChat previously supplied one. If WeChat rejects that token, Moof retries the same notification without it. If WeChat rejects both attempts, Moof waits for a new message from the connected account, stores only its conversation token, and automatically retries the pending notifications. No QR scan is needed unless WeChat invalidates the bot credential itself.
 
 ## License
 

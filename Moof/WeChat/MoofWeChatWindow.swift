@@ -127,6 +127,15 @@ private struct MoofWeChatView: View {
                     } label: {
                         Label("Test Message", systemImage: "face.smiling")
                     }
+                    if wechat.isAwaitingDeliveryContext {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Waiting for a message from WeChat…")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     if let problem = wechat.problem {
                         Text(problem)
                             .font(.callout)

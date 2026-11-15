@@ -151,7 +151,11 @@ final class MoofNotificationCenter {
 
     func performAction(_ id: String) {
         guard let url = items[id]?.notification.action else { return }
-        NSWorkspace.shared.open(url)
+        if url.scheme?.lowercased() == "moof", url.host?.lowercased() == "wechat" {
+            MoofWeChatWindowController.shared.present()
+        } else {
+            NSWorkspace.shared.open(url)
+        }
         close(id)
     }
 
