@@ -193,12 +193,12 @@ struct MenuBarView: View {
             }
             Divider()
             Button(
-                weChat.isConnected ? "WeChat Account…" : weChat.isPaired ? "Finish WeChat Setup…" : "Connect WeChat…",
-                systemImage: weChat.isConnected ? "bubble.left.and.bubble.right" : weChat.isPaired ? "exclamationmark.triangle" : "qrcode"
+                weChat.isConnected ? "WeChat Account…" : "Connect WeChat…",
+                systemImage: weChat.isConnected ? "bubble.left.and.bubble.right" : "qrcode"
             ) {
                 MoofWeChatWindowController.shared.present()
             }
-            .badge(weChat.problem == nil && !(weChat.isPaired && !weChat.isConnected) ? nil : Text("!"))
+            .badge(weChat.problem == nil ? nil : Text("!"))
             Button("Also Send to WeChat", systemImage: "paperplane") {
                 weChat.mirrorNotifications.toggle()
             }

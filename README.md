@@ -34,11 +34,11 @@ These themes reinterpret general visual styles. Moof contains no fonts, characte
 
 ## WeChat
 
-Choose **Connect WeChat…** in the menu bar and scan the QR code with WeChat. Then send any message to the newly connected bot once; that inbound message supplies the conversation token WeChat requires for proactive delivery. Moof reads only the token and discards the message content. It stores both tokens locally, and no Node.js runtime or OpenClaw installation is needed. After pairing, enable **Also Send to WeChat** to send a copy of each incoming URL-scheme or CLI notification to the account that scanned the code.
+Choose **Connect WeChat…** in the menu bar and scan the QR code with WeChat. No inbound message is required. Moof stores the bot and account credentials locally, and no Node.js runtime or OpenClaw installation is needed. After pairing, enable **Also Send to WeChat** to send a copy of each incoming URL-scheme or CLI notification to the account that scanned the code.
 
 The integration uses the same iLink bot login and message endpoints as Tencent's MIT-licensed OpenClaw Weixin channel. The stored tokens leave the local credential file only in authenticated requests to WeChat.
 
-Moof does not keep a permanent long-poll connection. It polls only while waiting for a new conversation token, either during initial setup or after WeChat rejects an expired delivery context. In the latter case, sending any message to the bot restores notifications without another QR scan. If WeChat invalidates the bot session itself, the QR connection must be verified again.
+Moof includes a conversation token when WeChat previously supplied one. If WeChat rejects that token, Moof retries the same notification without it and continues delivering using the stored bot credential. If WeChat invalidates the bot credential itself, the QR connection must be verified again.
 
 ## License
 

@@ -39,11 +39,7 @@ final class MoofWeChatWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func present() {
-        if MoofWeChat.shared.isPaired {
-            if !MoofWeChat.shared.isConnected {
-                MoofWeChat.shared.beginContextCapture()
-            }
-        } else if !MoofWeChat.shared.isLoggingIn {
+        if !MoofWeChat.shared.isPaired, !MoofWeChat.shared.isLoggingIn {
             MoofWeChat.shared.beginLogin()
         }
         window?.deminiaturize(nil)
@@ -126,6 +122,11 @@ private struct MoofWeChatView: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
+                    Button {
+                        wechat.sendTestMessage()
+                    } label: {
+                        Label("Test Message", systemImage: "face.smiling")
+                    }
                     if let problem = wechat.problem {
                         Text(problem)
                             .font(.callout)
@@ -141,7 +142,6 @@ private struct MoofWeChatView: View {
                             .keyboardShortcut(.defaultAction)
                     }
                 }
-                .padding(.vertical, 8)
             } else {
                 if wechat.isLoggingIn, let qrImage = wechat.qrImage {
                     Image(nsImage: qrImage)
@@ -201,41 +201,6 @@ private struct MoofWeChatView: View {
                         Spacer()
                         Button("Cancel") { close() }
                     }
-                case .awaitingMessage:
-                    Image(systemName: "1.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color.accentColor)
-                    Text("Send a message from WeChat")
-                        .font(.headline)
-                    Text("Open the newly connected bot in WeChat and send any message, such as “Hello”. This creates the delivery token WeChat requires for notifications. The message content is not stored.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let accountID = wechat.credential?.accountID {
-                        Text(accountID)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.tertiary)
-                            .textSelection(.enabled)
-                    }
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Waiting for your message…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    if let problem = wechat.problem {
-                        Text(problem)
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    HStack {
-                        if wechat.isPaired {
-                            Button("Disconnect…", role: .destructive) { confirmsDisconnect = true }
-                        }
-                        Spacer()
-                        Button("Close") { close() }
-                    }
                 case .pinRequired, .pinRejected:
                     Text(wechat.phase == .pinRequired ? "Enter the PIN from WeChat" : "That PIN didn’t match")
                         .font(.headline)
@@ -294,8 +259,9 @@ private struct MoofWeChatView: View {
                 }
             }
         }
-        .padding(24)
+        .padding(16)
         .frame(width: 430)
+        .buttonBorderShape(.capsule)
         .onAppear(perform: sizeToFit)
         .onChange(of: wechat.phase) { _, _ in sizeToFit() }
         .onChange(of: wechat.problem) { _, _ in sizeToFit() }
