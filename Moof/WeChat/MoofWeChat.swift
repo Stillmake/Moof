@@ -222,7 +222,8 @@ private enum MoofWeChatAPI {
         case invalidResponse
         case http(status: Int, detail: String)
         case server(String)
-        case contextExpired
+        case deliveryContextRejected
+        case rateLimited
         case staleSession
 
         var errorDescription: String? {
@@ -235,8 +236,10 @@ private enum MoofWeChatAPI {
                 detail.isEmpty ? "WeChat returned HTTP \(status)." : "WeChat returned HTTP \(status): \(detail)"
             case .server(let message):
                 message
-            case .contextExpired:
-                "WeChat’s delivery context expired."
+            case .deliveryContextRejected:
+                "WeChat rejected the delivery context."
+            case .rateLimited:
+                "WeChat is rate limiting messages."
             case .staleSession:
                 "WeChat requires re-verification. Reconnect WeChat to continue."
             }
@@ -314,7 +317,15 @@ private enum MoofWeChatAPI {
         if let code, code != 0 {
             switch code {
             case -2:
-                throw Failure.contextExpired
+                let message = response.errmsg?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let normalized = message.lowercased()
+                if normalized.contains("rate limit") {
+                    throw Failure.rateLimited
+                }
+                if message.isEmpty || normalized.contains("prepare failed") || normalized.contains("context") {
+                    throw Failure.deliveryContextRejected
+                }
+                throw Failure.server(message)
             case -14:
                 throw Failure.staleSession
             default:
@@ -393,11 +404,16 @@ final class MoofWeChat {
     var mirrorNotifications: Bool {
         didSet {
             UserDefaults.standard.set(mirrorNotifications, forKey: "WeChatMirrorNotifications")
-            if !mirrorNotifications {
+            if mirrorNotifications {
+                startContextMonitoringIfNeeded()
+            } else {
                 deliveryGeneration += 1
                 queuedMessages.removeAll()
                 deliveryTask?.cancel()
                 deliveryTask = nil
+                isAwaitingDeliveryContext = false
+                stopContextMonitoring()
+                MoofNotificationCenter.shared.close("wechat-context-recovery")
             }
         }
     }
@@ -421,8 +437,9 @@ final class MoofWeChat {
     @ObservationIgnored private var deliveryTask: Task<Void, Never>?
     @ObservationIgnored private var deliveryGeneration = 0
     @ObservationIgnored private var queuedMessages: [String] = []
-    @ObservationIgnored private var contextTask: Task<Void, Never>?
-    @ObservationIgnored private var contextCaptureID: UUID?
+    @ObservationIgnored private var contextMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var contextMonitorGeneration = 0
+    @ObservationIgnored private var contextCursor = ""
 
     private init() {
         mirrorNotifications = UserDefaults.standard.bool(forKey: "WeChatMirrorNotifications")
@@ -436,6 +453,7 @@ final class MoofWeChat {
             problem = message
             phase = .failed(message)
         }
+        startContextMonitoringIfNeeded()
     }
 
     func beginLogin() {
@@ -486,9 +504,8 @@ final class MoofWeChat {
         loginSessionID = nil
         loginTask?.cancel()
         loginTask = nil
-        contextCaptureID = nil
-        contextTask?.cancel()
-        contextTask = nil
+        stopContextMonitoring()
+        contextCursor = ""
         deliveryTask?.cancel()
         deliveryTask = nil
         pendingVerificationCode = nil
@@ -532,7 +549,7 @@ final class MoofWeChat {
         guard
             !isAwaitingDeliveryContext,
             credential != nil,
-            !queuedMessages.isEmpty,
+            queuedMessages.first != nil,
             deliveryTask == nil
         else { return }
         deliveryGeneration += 1
@@ -540,56 +557,90 @@ final class MoofWeChat {
         deliveryTask = Task { [weak self] in
             guard let self else { return }
             deliveryLoop: while !Task.isCancelled, self.deliveryGeneration == generation {
-                guard let credential = self.credential, !self.queuedMessages.isEmpty else {
+                guard let credential = self.credential, let text = self.queuedMessages.first else {
                     break
                 }
-                let text = self.queuedMessages.removeFirst()
                 do {
                     try await MoofWeChatAPI.send(text: text, to: credential.userID, credential: credential)
-                    if self.deliveryGeneration == generation {
-                        self.problem = nil
-                    }
-                } catch MoofWeChatAPI.Failure.contextExpired {
                     guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
-                    if credential.contextToken != nil {
-                        let contextless = MoofWeChatCredential(
-                            token: credential.token,
-                            accountID: credential.accountID,
-                            userID: credential.userID,
-                            baseURL: credential.baseURL,
-                            contextToken: nil
-                        )
-                        do {
-                            try await MoofWeChatAPI.send(text: text, to: contextless.userID, credential: contextless)
-                            guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                    self.queuedMessages.removeFirst()
+                    self.problem = nil
+                } catch MoofWeChatAPI.Failure.deliveryContextRejected {
+                    guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                    let failedContextToken = credential.contextToken
+                    guard let latest = self.credential, latest.token == credential.token else {
+                        break deliveryLoop
+                    }
+                    if latest.contextToken != failedContextToken {
+                        continue
+                    }
+                    guard failedContextToken != nil else {
+                        self.beginContextRecovery()
+                        break deliveryLoop
+                    }
+                    let contextless = MoofWeChatCredential(
+                        token: credential.token,
+                        accountID: credential.accountID,
+                        userID: credential.userID,
+                        baseURL: credential.baseURL,
+                        contextToken: nil
+                    )
+                    do {
+                        try await MoofWeChatAPI.send(text: text, to: contextless.userID, credential: contextless)
+                        guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                        self.queuedMessages.removeFirst()
+                        self.problem = nil
+                        if let latest = self.credential,
+                            latest.token == credential.token,
+                            latest.contextToken == failedContextToken
+                        {
                             self.credential = contextless
                             do {
                                 try MoofWeChatCredentialStore.save(contextless)
-                                self.problem = nil
                             } catch {
                                 self.problem = "WeChat delivered the message, but could not clear its expired context: \(error.localizedDescription)"
                             }
-                        } catch MoofWeChatAPI.Failure.contextExpired {
-                            guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
-                            self.beginContextRecovery(
-                                pendingText: text,
-                                credential: contextless
-                            )
-                            break deliveryLoop
-                        } catch {
-                            guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
-                            self.problem = "WeChat send failed: \(error.localizedDescription)"
                         }
-                    } else {
-                        self.beginContextRecovery(
-                            pendingText: text,
-                            credential: credential
-                        )
+                    } catch MoofWeChatAPI.Failure.deliveryContextRejected {
+                        guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                        guard let latest = self.credential, latest.token == credential.token else {
+                            break deliveryLoop
+                        }
+                        if latest.contextToken != failedContextToken {
+                            continue
+                        }
+                        self.beginContextRecovery()
+                        break deliveryLoop
+                    } catch MoofWeChatAPI.Failure.rateLimited {
+                        guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                        self.problem = "WeChat is rate limiting messages. Retrying…"
+                        do {
+                            try await Task.sleep(for: .seconds(30))
+                        } catch {
+                            return
+                        }
+                    } catch {
+                        guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                        self.problem = "WeChat send failed: \(error.localizedDescription)"
                         break deliveryLoop
                     }
+                } catch MoofWeChatAPI.Failure.rateLimited {
+                    guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                    self.problem = "WeChat is rate limiting messages. Retrying…"
+                    do {
+                        try await Task.sleep(for: .seconds(30))
+                    } catch {
+                        return
+                    }
+                } catch MoofWeChatAPI.Failure.staleSession {
+                    guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
+                    self.stopContextMonitoring()
+                    self.problem = MoofWeChatAPI.Failure.staleSession.localizedDescription
+                    break deliveryLoop
                 } catch {
                     guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
                     self.problem = "WeChat send failed: \(error.localizedDescription)"
+                    break deliveryLoop
                 }
             }
             if self.deliveryGeneration == generation {
@@ -601,19 +652,14 @@ final class MoofWeChat {
         }
     }
 
-    private func beginContextRecovery(
-        pendingText: String,
-        credential: MoofWeChatCredential
-    ) {
-        queuedMessages.insert(pendingText, at: 0)
-        self.credential = credential
+    private func beginContextRecovery() {
         isAwaitingDeliveryContext = true
-        problem = "WeChat needs a fresh conversation. Send any message to the bot to resume delivery."
+        problem = "WeChat rejected the send. Send a message to the bot to refresh the conversation."
         MoofNotificationCenter.shared.show(
             MoofNotification(
                 id: "wechat-context-recovery",
                 title: "WeChat needs a message",
-                body: "Send any message to the bot from WeChat, then Moof will retry automatically.",
+                body: "Send any message to the bot from WeChat, then Moof will retry automatically. Reconnect if delivery does not resume.",
                 source: "WeChat",
                 style: .warning,
                 theme: MoofPreferences.shared.theme,
@@ -624,101 +670,123 @@ final class MoofWeChat {
             ),
             sendsToWeChat: false
         )
-        do {
-            try MoofWeChatCredentialStore.save(credential)
-        } catch {
-            problem = "WeChat needs a fresh conversation, but its expired context could not be saved: \(error.localizedDescription)"
-        }
-        guard contextTask == nil else { return }
-        let captureID = UUID()
-        contextCaptureID = captureID
-        contextTask = Task { [weak self] in
-            await self?.captureContextToken(sessionID: captureID)
-        }
-    }
-
-    private func captureContextToken(sessionID: UUID) async {
-        defer {
-            if contextCaptureID == sessionID {
-                contextTask = nil
-                contextCaptureID = nil
+        if let credential, credential.contextToken != nil {
+            let contextless = MoofWeChatCredential(
+                token: credential.token,
+                accountID: credential.accountID,
+                userID: credential.userID,
+                baseURL: credential.baseURL,
+                contextToken: nil
+            )
+            self.credential = contextless
+            do {
+                try MoofWeChatCredentialStore.save(contextless)
+            } catch {
+                problem = "WeChat needs a fresh conversation, but the rejected context could not be cleared: \(error.localizedDescription)"
             }
         }
+        startContextMonitoringIfNeeded()
+    }
 
-        var cursor = ""
-        var consecutiveFailures = 0
-        while !Task.isCancelled,
-            contextCaptureID == sessionID,
-            isAwaitingDeliveryContext,
-            let current = credential
-        {
-            do {
-                let response = try await MoofWeChatAPI.updates(
-                    baseURL: current.baseURL,
-                    token: current.token,
-                    cursor: cursor
-                )
-                guard !Task.isCancelled, contextCaptureID == sessionID else { return }
-                consecutiveFailures = 0
-                if let nextCursor = response.nextCursor, !nextCursor.isEmpty {
-                    cursor = nextCursor
-                }
-                guard let latestCredential = self.credential, latestCredential.token == current.token else { return }
-                if let contextToken = response.messages?
-                    .last(where: { $0.fromUserID == current.userID })?
-                    .contextToken?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                    !contextToken.isEmpty
-                {
-                    let updated = MoofWeChatCredential(
-                        token: latestCredential.token,
-                        accountID: latestCredential.accountID,
-                        userID: latestCredential.userID,
-                        baseURL: latestCredential.baseURL,
-                        contextToken: contextToken
+    private func startContextMonitoringIfNeeded() {
+        guard
+            contextMonitorTask == nil,
+            credential != nil,
+            mirrorNotifications || isAwaitingDeliveryContext
+        else { return }
+        contextMonitorGeneration += 1
+        let generation = contextMonitorGeneration
+        contextMonitorTask = Task { [weak self] in
+            guard let self else { return }
+            var consecutiveFailures = 0
+            while !Task.isCancelled,
+                self.contextMonitorGeneration == generation,
+                self.mirrorNotifications || self.isAwaitingDeliveryContext,
+                let current = self.credential
+            {
+                do {
+                    let response = try await MoofWeChatAPI.updates(
+                        baseURL: current.baseURL,
+                        token: current.token,
+                        cursor: self.contextCursor
                     )
-                    self.credential = updated
-                    do {
-                        try MoofWeChatCredentialStore.save(updated)
-                        problem = nil
-                    } catch {
-                        problem = "WeChat received a fresh context, but it could not be saved: \(error.localizedDescription)"
+                    guard !Task.isCancelled,
+                        self.contextMonitorGeneration == generation,
+                        let latest = self.credential,
+                        latest.token == current.token
+                    else { return }
+                    consecutiveFailures = 0
+                    if let nextCursor = response.nextCursor, !nextCursor.isEmpty {
+                        self.contextCursor = nextCursor
                     }
-                    isAwaitingDeliveryContext = false
+                    let contextToken = response.messages?
+                        .reversed()
+                        .compactMap { message -> String? in
+                            guard message.fromUserID == current.userID else { return nil }
+                            return message.contextToken?
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        .first(where: { !$0.isEmpty })
+                    if let contextToken {
+                        if latest.contextToken != contextToken {
+                            let updated = MoofWeChatCredential(
+                                token: latest.token,
+                                accountID: latest.accountID,
+                                userID: latest.userID,
+                                baseURL: latest.baseURL,
+                                contextToken: contextToken
+                            )
+                            self.credential = updated
+                            do {
+                                try MoofWeChatCredentialStore.save(updated)
+                                self.problem = nil
+                            } catch {
+                                self.problem = "WeChat received a fresh context, but it could not be saved: \(error.localizedDescription)"
+                            }
+                        }
+                        if self.isAwaitingDeliveryContext {
+                            self.isAwaitingDeliveryContext = false
+                            MoofNotificationCenter.shared.close("wechat-context-recovery")
+                            self.startDeliveryIfPossible()
+                        }
+                        if !self.mirrorNotifications, !self.isAwaitingDeliveryContext {
+                            break
+                        }
+                    }
+                } catch MoofWeChatAPI.Failure.staleSession {
+                    guard !Task.isCancelled, self.contextMonitorGeneration == generation else { return }
+                    self.problem = MoofWeChatAPI.Failure.staleSession.localizedDescription
+                    self.isAwaitingDeliveryContext = false
                     MoofNotificationCenter.shared.close("wechat-context-recovery")
-                    startDeliveryIfPossible()
-                    return
-                }
-                try await Task.sleep(for: .milliseconds(500))
-            } catch MoofWeChatAPI.Failure.staleSession {
-                guard !Task.isCancelled, contextCaptureID == sessionID else { return }
-                let message = "WeChat requires re-verification. Reconnect WeChat to continue."
-                problem = message
-                isAwaitingDeliveryContext = false
-                return
-            } catch {
-                if Task.isCancelled || contextCaptureID != sessionID { return }
-                if (error as? URLError)?.code == .timedOut {
-                    continue
-                }
-                consecutiveFailures += 1
-                if consecutiveFailures >= 3 {
-                    problem = "Waiting for WeChat. Retrying…"
+                    break
+                } catch {
+                    guard !Task.isCancelled, self.contextMonitorGeneration == generation else { return }
+                    if (error as? URLError)?.code == .timedOut {
+                        continue
+                    }
+                    consecutiveFailures += 1
                     do {
-                        try await Task.sleep(for: .seconds(30))
+                        try await Task.sleep(
+                            for: .seconds(consecutiveFailures >= 3 ? 30.0 : 2.0)
+                        )
                     } catch {
                         return
                     }
-                    consecutiveFailures = 0
-                    continue
-                }
-                do {
-                    try await Task.sleep(for: .seconds(2))
-                } catch {
-                    return
+                    if consecutiveFailures >= 3 {
+                        consecutiveFailures = 0
+                    }
                 }
             }
+            if self.contextMonitorGeneration == generation {
+                self.contextMonitorTask = nil
+            }
         }
+    }
+
+    private func stopContextMonitoring() {
+        contextMonitorGeneration += 1
+        contextMonitorTask?.cancel()
+        contextMonitorTask = nil
     }
 
     private func performLogin(sessionID: UUID) async {
@@ -841,6 +909,8 @@ final class MoofWeChat {
                     qrImage = nil
                     problem = nil
                     phase = .connected
+                    contextCursor = ""
+                    startContextMonitoringIfNeeded()
                     return
                 default:
                     throw MoofWeChatAPI.Failure.invalidResponse
