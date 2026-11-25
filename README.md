@@ -4,12 +4,19 @@
 
 A macOS menu bar app that shows floating notification cards, triggered from a URL scheme or the `moof` command line tool, and can mirror them to WeChat or Telegram.
 
+## Install
+
+- [Download from the Mac App Store](https://apps.apple.com/us/app/moof-notification-cards/id6825177572?mt=12)
+- [Download Moof 1.1.4 (DMG)](https://github.com/Stillmake/releases/releases/download/moof-1.1.4-50/Moof.dmg)
+
+Requires macOS 26 or later.
+
 ```sh
 moof notify --title "Build done" --body "All green" --style success
 open -g "moof://notify?title=Deploy&body=Waiting%20for%20approval&style=warning&duration=0"
 ```
 
-Install the CLI from the menu bar (**Command Line Tool…**), or use **Copy Prompt** to give an AI agent the full reference.
+After installing, use **Command Line Tool…** in the menu bar to install the `moof` CLI, or **Copy Prompt** to give an AI agent the full reference.
 
 ## Themes
 
@@ -34,17 +41,17 @@ These themes reinterpret general visual styles. Moof contains no fonts, characte
 
 ## WeChat
 
-Choose **Connect WeChat…** in the menu bar and scan the QR code with WeChat. Pairing does not require an inbound message. Moof stores the bot and account credentials locally, and no Node.js runtime or OpenClaw installation is needed. After pairing, enable **Also Send to WeChat** to send a copy of each incoming URL-scheme or CLI notification to the account that scanned the code.
-
-The integration uses the same iLink bot login and message endpoints as Tencent's MIT-licensed OpenClaw Weixin channel. The stored tokens leave the local credential file only in authenticated requests to WeChat.
-
-While **Also Send to WeChat** is enabled, Moof keeps a long-poll for messages from the connected account and stores each new conversation token. Outbound messages include that token when available. If WeChat rejects it, Moof retries the same notification without it. If WeChat rejects both attempts, Moof keeps the pending notification, waits for a new message from the connected account, stores its conversation token, and retries automatically. No QR scan is needed unless WeChat invalidates the bot credential itself.
+- Choose **Connect WeChat…** and scan the QR code.
+- Enable **Also Send to WeChat** to mirror notifications.
+- Moof talks directly to WeChat's bot service; no Node.js, OpenClaw, or server is required.
+- Failed sends retry automatically.
 
 ## Telegram
 
-Choose **Connect Telegram…** in the menu bar, create a bot with [@BotFather](https://t.me/BotFather), and paste its token. Moof validates the token and shows a short one-time code. Send that code in the bot’s private chat, and Moof discovers and binds the chat automatically. It needs no inbound server, webhook, SDK, or Node.js runtime.
-
-After pairing, enable **Also Send to Telegram** to send a copy of each incoming URL-scheme or CLI notification as a plain-text bot message. HTTP actions become inline buttons. The bot token and paired chat are stored locally in Moof's preferences.
+- Create your own bot with [@BotFather](https://t.me/BotFather) and paste its token into **Connect Telegram…**.
+- Open the bot, press Start if needed, and send the one-time code Moof shows.
+- Enable **Also Send to Telegram** to mirror notifications.
+- HTTP actions become inline buttons; no server or SDK is required.
 
 ## License
 

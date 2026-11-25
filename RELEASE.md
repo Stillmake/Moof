@@ -11,7 +11,8 @@
 
 - Version and build are what the DMG carries. The script reads them; don't type them anywhere.
 - The DMG goes up before anything points at it. `feed`, `site` and `cask` refuse to run until it is published.
-- `changelog.json` is the only hand-edited release file.
+- Published download links in the homepage and README must use the release-specific URL, not `releases/latest`: `https://github.com/Stillmake/releases/releases/download/moof-{version}-{build}/Moof.dmg`.
+- `changelog.json` is the only hand-edited file in the releases repo.
 
 Everything else is adjustable.
 
@@ -27,7 +28,9 @@ Everything else is adjustable.
 
    Notes cover the commits since the previous release's `Commit:` line, or since the previous source tag. Match the voice of the last few entries: what the user can now do or what stopped breaking, sentence case, no trailing period, bugs named by symptom. Committing it yourself is optional; the feed stage commits it with the feed.
 4. Tag the shipped commit with the marketing version: `git tag 1.0 <commit> && git push origin 1.0`.
-5. `./scripts/release.sh`
+5. Publish the DMG first: `./scripts/release.sh --only publish`
+6. Update Moof's download link in the homepage repo and `README.md` to the URL for this release, then commit and push the changes.
+7. Finish the release: `./scripts/release.sh --only feed,site,cask`
 
 ## Stages
 
