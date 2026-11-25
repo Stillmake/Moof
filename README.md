@@ -2,7 +2,7 @@
 
 ![Moof notification cards in the Hollow Knight, Elden Ring, Mario and Default themes](assets/banner.avif)
 
-A macOS menu bar app that shows floating notification cards, triggered from a URL scheme or the `moof` command line tool, and can mirror them to WeChat.
+A macOS menu bar app that shows floating notification cards, triggered from a URL scheme or the `moof` command line tool, and can mirror them to WeChat or Telegram.
 
 ```sh
 moof notify --title "Build done" --body "All green" --style success
@@ -39,6 +39,12 @@ Choose **Connect WeChat…** in the menu bar and scan the QR code with WeChat. P
 The integration uses the same iLink bot login and message endpoints as Tencent's MIT-licensed OpenClaw Weixin channel. The stored tokens leave the local credential file only in authenticated requests to WeChat.
 
 While **Also Send to WeChat** is enabled, Moof keeps a long-poll for messages from the connected account and stores each new conversation token. Outbound messages include that token when available. If WeChat rejects it, Moof retries the same notification without it. If WeChat rejects both attempts, Moof keeps the pending notification, waits for a new message from the connected account, stores its conversation token, and retries automatically. No QR scan is needed unless WeChat invalidates the bot credential itself.
+
+## Telegram
+
+Choose **Connect Telegram…** in the menu bar, create a bot with [@BotFather](https://t.me/BotFather), and paste its token. Moof validates the token and shows a short one-time code. Send that code in the bot’s private chat, and Moof discovers and binds the chat automatically. It needs no inbound server, webhook, SDK, or Node.js runtime.
+
+After pairing, enable **Also Send to Telegram** to send a copy of each incoming URL-scheme or CLI notification as a plain-text bot message. HTTP actions become inline buttons. The bot token and paired chat are stored locally in Moof's preferences.
 
 ## License
 

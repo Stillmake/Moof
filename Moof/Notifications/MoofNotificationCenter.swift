@@ -63,17 +63,16 @@ final class MoofNotificationCenter {
         }
     }
 
-    func handle(_ command: MoofCommand, sendsToWeChat: Bool = true) {
+    func handle(_ command: MoofCommand, sendsToMirrors: Bool = true) {
         switch command {
         case .notify(let notification):
-            show(notification, sendsToWeChat: sendsToWeChat)
+            show(notification, sendsToMirrors: sendsToMirrors)
         case .dismiss(let id):
             close(id)
         }
     }
 
-    func show(_ notification: MoofNotification, sendsToWeChat: Bool = false) {
-
+    func show(_ notification: MoofNotification, sendsToMirrors: Bool = false) {
         if let item = items[notification.id] {
             item.notification = notification
             item.dismissState = nil
@@ -84,12 +83,13 @@ final class MoofNotificationCenter {
             order.append(notification.id)
             layoutWindows(animatedNewID: nil)
             scheduleSave()
-            if sendsToWeChat { MoofWeChat.shared.send(notification) }
-            return
+        } else {
+            present(MoofNotificationItem(notification: notification))
         }
-
-        present(MoofNotificationItem(notification: notification))
-        if sendsToWeChat { MoofWeChat.shared.send(notification) }
+        if sendsToMirrors {
+            MoofWeChat.shared.send(notification)
+            MoofTelegram.shared.send(notification)
+        }
     }
 
     /// Shows the cards saved by the previous run. Cards whose deadline

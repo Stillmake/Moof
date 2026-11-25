@@ -17,6 +17,15 @@ enum MoofTheme: String, CaseIterable, Codable {
     }
 }
 
+enum MoofTestMessage {
+    static var randomEmoji: String {
+        let emoji = ["🌙", "✨", "🍊", "🌿", "🫧", "🎈", "🐾", "🌸", "☀️", "🍀"]
+        return (0..<Int.random(in: 3...6))
+            .map { _ in emoji[Int.random(in: emoji.indices)] }
+            .joined()
+    }
+}
+
 /// `moof://notify?title=…` payload. A repeated `id` replaces the card that is already on screen.
 struct MoofNotification: Identifiable {
     enum Style: String, CaseIterable, Codable {

@@ -148,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MenuBarView: View {
     @Bindable private var preferences = MoofPreferences.shared
     @Bindable private var weChat = MoofWeChat.shared
+    @Bindable private var telegram = MoofTelegram.shared
     @State private var isCLIInstalled = Self.cliLinksThisBuild
 
     private static var cliLinksThisBuild: Bool {
@@ -204,6 +205,19 @@ struct MenuBarView: View {
             }
             .badge(weChat.mirrorNotifications ? Text("✓") : nil)
             .disabled(!weChat.isConnected)
+            Divider()
+            Button(
+                telegram.isConnected ? "Telegram Account…" : "Connect Telegram…",
+                systemImage: telegram.isConnected ? "paperplane.circle.fill" : "paperplane.circle"
+            ) {
+                MoofTelegramWindowController.shared.present()
+            }
+            .badge(telegram.problem == nil ? nil : Text("!"))
+            Button("Also Send to Telegram", systemImage: "paperplane") {
+                telegram.mirrorNotifications.toggle()
+            }
+            .badge(telegram.mirrorNotifications ? Text("✓") : nil)
+            .disabled(!telegram.isConnected)
             Divider()
             Button("Open at Login", systemImage: "power.circle") {
                 do {
@@ -281,7 +295,7 @@ struct MenuBarView: View {
                 "moof://notify?title=Moof%20Test&body=This%20is%20a%20\(style.rawValue)%20alert.&style=\(style.rawValue)&source=Moof&action=https%3A%2F%2Fgithub.com%2FStillmake%2FMoof&actionTitle=GitHub"
         )
         do {
-            center.handle(try MoofCommand(url: url!), sendsToWeChat: false)
+            center.handle(try MoofCommand(url: url!), sendsToMirrors: false)
         } catch {
             assertionFailure("Test URL should parse: \(error)")
         }

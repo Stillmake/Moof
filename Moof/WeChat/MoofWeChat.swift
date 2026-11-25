@@ -487,11 +487,7 @@ final class MoofWeChat {
         pendingVerificationCode = nil
         verificationCode = ""
         qrImage = nil
-        if let credential {
-            phase = .connected
-        } else {
-            phase = .idle
-        }
+        phase = credential == nil ? .idle : .connected
     }
 
     func disconnect() {
@@ -533,11 +529,7 @@ final class MoofWeChat {
 
     func sendTestMessage() {
         guard credential != nil else { return }
-        let emoji = ["🌙", "✨", "🍊", "🌿", "🫧", "🎈", "🐾", "🌸", "☀️", "🍀"]
-        let sequence = (0..<Int.random(in: 3...6)).map { _ in
-            emoji[Int.random(in: emoji.indices)]
-        }.joined()
-        enqueue(sequence)
+        enqueue(MoofTestMessage.randomEmoji)
     }
 
     private func enqueue(_ text: String) {
@@ -668,7 +660,7 @@ final class MoofWeChat {
                 action: URL(string: "moof://wechat"),
                 actionTitle: "Open WeChat Settings"
             ),
-            sendsToWeChat: false
+            sendsToMirrors: false
         )
         if let credential, credential.contextToken != nil {
             let contextless = MoofWeChatCredential(
