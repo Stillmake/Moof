@@ -441,6 +441,11 @@ final class MoofTelegram {
         let generation = deliveryGeneration
         deliveryTask = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if self.deliveryGeneration == generation {
+                    self.deliveryTask = nil
+                }
+            }
             var transientFailures = 0
 
             while !Task.isCancelled, self.deliveryGeneration == generation {
@@ -482,12 +487,32 @@ final class MoofTelegram {
                             return
                         }
                     } else {
-                        self.queuedMessages.removeAll()
-                        self.problem =
-                            failure.tokenRejected
-                            ? "Telegram rejected the bot token. Reconnect Telegram."
-                            : "Telegram send failed: \(failure.localizedDescription)"
-                        break
+                        let affectsAll: Bool
+                        switch failure {
+                        case .invalidToken:
+                            affectsAll = true
+                        case .response(let status, _, _):
+                            affectsAll = status == 401 || status == 403
+                        case .invalidResponse:
+                            affectsAll = false
+                        }
+                        if affectsAll {
+                            self.queuedMessages.removeAll()
+                            self.problem =
+                                failure.tokenRejected
+                                ? "Telegram rejected the bot token. Reconnect Telegram."
+                                : "Telegram can no longer deliver to this chat: \(failure.localizedDescription)"
+                            break
+                        }
+                        self.queuedMessages.removeFirst()
+                        self.problem = "Telegram rejected a notification and skipped it: \(failure.localizedDescription)"
+                        if !self.queuedMessages.isEmpty {
+                            do {
+                                try await Task.sleep(for: .seconds(1))
+                            } catch {
+                                return
+                            }
+                        }
                     }
                 } catch {
                     guard !Task.isCancelled, self.deliveryGeneration == generation else { return }
@@ -501,10 +526,6 @@ final class MoofTelegram {
                         return
                     }
                 }
-            }
-
-            if self.deliveryGeneration == generation {
-                self.deliveryTask = nil
             }
         }
     }
@@ -614,7 +635,7 @@ final class MoofTelegram {
 
             throw MoofTelegramAPI.Failure.response(
                 status: 408,
-                message: "Timed out waiting for Start in Telegram. Try again.",
+                message: "Timed out waiting for the pairing code in Telegram. Try again.",
                 retryAfter: nil
             )
         } catch is CancellationError {
